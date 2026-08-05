@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wunschbaum</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #fff; color: #16181d; display: flex; flex-direction: column;
+  }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid #e6e8ec; background: #fff; z-index: 5;
+  }
+  h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: -.2px; }
+  button {
+    font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px;
+    border: 1px solid #d7dae0; background: #fff; color: #16181d; cursor: pointer;
+  }
+  button:hover { background: #f4f5f7; }
+  button.primary { background: #16181d; color: #fff; border-color: #16181d; }
+  button.primary:hover { background: #34383f; }
+  button.active { background: #16181d; color: #fff; border-color: #16181d; }
+  button.ghost { border-color: transparent; color: #6b7280; }
+  button.ghost:hover { background: #f4f5f7; }
+  .spacer { flex: 1; }
+
+  /* ---------- Layout ---------- */
+  main { flex: 1; display: flex; min-height: 0; }
+  #canvasWrap { flex: 1; overflow: auto; position: relative; }
+  #canvas {
+    position: relative; width: 2400px; height: 1800px;
+    background-color: #fff;
+    background-image:
+      linear-gradient(rgba(22,24,29,.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(22,24,29,.055) 1px, transparent 1px),
+      linear-gradient(rgba(22,24,29,.10) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(22,24,29,.10) 1px, transparent 1px);
+    background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  }
+  #lines { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #lines line { stroke: #9aa2ae; stroke-width: 2.5; }
+  #lines line.hit { stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; }
+
+  /* ---------- Post-it Grundlook ---------- */
+  .postit { position: relative; border-radius: 3px; }
+  .postit::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 15px;
+    background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0));
+    border-bottom: 1px solid rgba(0,0,0,.055);
+    box-shadow: 0 4px 6px -4px rgba(0,0,0,.45);
+    transform: perspective(28px) rotateX(4deg);
+    transform-origin: top center;
+    border-radius: 3px 3px 0 0; pointer-events: none;
+  }
+  .postit::after {
+    content: ""; position: absolute; right: 0; bottom: 0;
+    border-width: 0 0 16px 16px; border-style: solid;
+    border-color: transparent transparent rgba(0,0,0,.07) transparent;
+    pointer-events: none;
+  }
+
+  /* ---------- Personen-Post-its ---------- */
+  .person {
+    position: absolute; width: 200px;
+    background: #fdf0a6;
+    padding: 20px 12px 12px; cursor: grab; user-select: none; touch-action: none;
+    box-shadow: 0 8px 16px -8px rgba(22,24,29,.45), 0 2px 4px rgba(22,24,29,.1);
+  }
+  .person:active { cursor: grabbing; }
+  .person.sel { outline: 2.5px solid #4f46e5; outline-offset: 2px; }
+  .person.link1 { outline: 2.5px dashed #4f46e5; outline-offset: 2px; }
+  .person .nm { font-weight: 700; font-size: 15px; line-height: 1.2; }
+  .person .rl { font-size: 11px; color: #7a6a1f; margin-top: 2px; }
+  .person .wishes { margin-top: 9px; display: flex; flex-direction: column; gap: 5px; }
+  .person .none { font-size: 11px; color: #9a8b3f; margin-top: 8px; font-style: italic; }
+
+  .mini {
+    background: #eafbe7; border-radius: 3px; padding: 6px 7px 5px;
+    box-shadow: 0 2px 3px -1px rgba(22,24,29,.22);
+    background-image: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,0) 12px);
+    cursor: pointer; position: relative;
+  }
+  .mini.u { background-color: #f6e8fd; border: 1px dashed rgba(107,33,168,.4); }
+  .mini.done { opacity: .5; }
+  .mini .mt { font-size: 12px; line-height: 1.3; word-break: break-word; }
+  .mini.done .mt { text-decoration: line-through; }
+  .mini .mn { font-size: 10.5px; color: #4b5563; margin-top: 3px; line-height: 1.3; font-style: italic; }
+  .mini .mo { font-size: 9.5px; margin-top: 3px; letter-spacing: .3px; text-transform: uppercase; opacity: .65; }
+  .moreBtn {
+    font-size: 11px; padding: 3px 7px; border-radius: 6px; align-self: flex-start;
+    border: 1px solid rgba(22,24,29,.18); background: rgba(255,255,255,.6); cursor: pointer;
+  }
+
+  /* ---------- Sidebar ---------- */
+  aside {
+    width: 360px; flex: 0 0 360px; border-left: 1px solid #e6e8ec;
+    display: flex; flex-direction: column; min-height: 0; background: #fff;
+  }
+  .sideHead { padding: 12px 14px 10px; border-bottom: 1px solid #eef0f3; }
+  .sideHead .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .sideHead h2 { font-size: 13px; margin: 0; font-weight: 600; }
+  .chipBtn {
+    font-size: 12px; padding: 4px 9px; border-radius: 999px;
+    border: 1px solid #d7dae0; background: #fff; cursor: pointer;
+  }
+  .chipBtn.on { background: #16181d; color: #fff; border-color: #16181d; }
+  #wishList { flex: 1; overflow: auto; padding: 14px; background: #fafbfc; }
+
+  .wish {
+    background: #eafbe7; padding: 19px 11px 11px; margin-bottom: 10px;
+    box-shadow: 0 6px 12px -7px rgba(22,24,29,.45), 0 1px 3px rgba(22,24,29,.1);
+  }
+  .wish.unreal { background: #f6e8fd; }
+  .wish.done { opacity: .5; }
+  .wish .txt { font-size: 13.5px; line-height: 1.35; font-weight: 500; }
+  .wish.done .txt { text-decoration: line-through; }
+  .wish .note { font-size: 12px; color: #4b5563; margin-top: 5px; line-height: 1.35; font-style: italic; }
+  .wish .meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; align-items: center; }
+  .tag { font-size: 10.5px; padding: 2px 7px; border-radius: 999px; background: rgba(255,255,255,.7); border: 1px solid rgba(22,24,29,.12); color: #374151; }
+  .tag.bday { color: #9a3412; }
+  .tag.xmas { color: #166534; }
+  .tag.both { color: #1e40af; }
+  .wish .acts { display: flex; gap: 4px; margin-top: 9px; }
+  .wish .acts button { font-size: 11.5px; padding: 3px 8px; background: rgba(255,255,255,.75); border-color: rgba(22,24,29,.15); }
+  .empty { color: #9ca3af; font-size: 13px; padding: 18px 2px; line-height: 1.5; }
+
+  /* ---------- Modal ---------- */
+  .backdrop {
+    position: fixed; inset: 0; background: rgba(15,17,21,.35);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 420px;
+    max-height: 88vh; overflow: auto; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  }
+  .modal h3 { margin: 0 0 14px; font-size: 15px; }
+  label { display: block; font-size: 12px; color: #6b7280; margin: 12px 0 5px; }
+  input[type=text], textarea, select {
+    width: 100%; font: inherit; font-size: 14px; padding: 8px 10px;
+    border: 1px solid #d7dae0; border-radius: 8px; background: #fff; color: #16181d;
+  }
+  textarea { min-height: 62px; resize: vertical; }
+  .checks { max-height: 170px; overflow: auto; border: 1px solid #e6e8ec; border-radius: 8px; padding: 6px; }
+  .checks label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 5px 4px; font-size: 13.5px; color: #16181d; cursor: pointer; }
+  .checks input { margin: 0; }
+  .segs { display: flex; gap: 6px; }
+  .segs button { flex: 1; }
+  .modalActs { display: flex; gap: 8px; margin-top: 18px; }
+  .danger { color: #b91c1c; border-color: #fecaca; }
+  .danger:hover { background: #fef2f2; }
+  .hint { font-size: 11.5px; color: #9ca3af; margin-top: 6px; line-height: 1.4; }
+
+  @media (max-width: 860px) {
+    main { flex-direction: column; }
+    aside { width: auto; flex: 0 0 45%; border-left: none; border-top: 1px solid #e6e8ec; }
+    #canvasWrap { flex: 1 1 55%; }
+  }
+
+  /* ---------- Sidebar einklappen ---------- */
+  body.noside aside { display: none; }
+
+  /* ---------- Druck / PDF ---------- */
+  #printArea { display: none; }
+  @media print {
+    @page { size: A4; margin: 15mm 14mm; }
+    html, body { height: auto; display: block; background: #fff; }
+    body > * { display: none !important; }
+    body > #printArea { display: block !important; }
+    #printArea { font-size: 11pt; color: #000; }
+    #printArea h1 { font-size: 19pt; margin: 0 0 2mm; }
+    #printArea .pDate { font-size: 9pt; color: #555; margin-bottom: 8mm; }
+    #printArea .pPerson { break-inside: avoid; page-break-inside: avoid; margin-bottom: 7mm; }
+    #printArea .pName {
+      font-size: 13pt; font-weight: 700; border-bottom: 1.2pt solid #000;
+      padding-bottom: 1.5mm; margin-bottom: 3mm;
+    }
+    #printArea .pName span { font-weight: 400; font-size: 10pt; color: #555; }
+    #printArea .pRow { display: flex; gap: 3mm; margin-bottom: 3mm; break-inside: avoid; page-break-inside: avoid; }
+    #printArea .pBox {
+      flex: 0 0 auto; width: 4.5mm; height: 4.5mm; border: 1pt solid #444;
+      border-radius: 1mm; margin-top: 1mm;
+    }
+    #printArea .pTxt { font-size: 11.5pt; line-height: 1.3; }
+    #printArea .pTxt.done { text-decoration: line-through; color: #777; }
+    #printArea .pNote { font-size: 9.5pt; color: #444; font-style: italic; margin-top: .8mm; }
+    #printArea .pTags { font-size: 8.5pt; color: #555; margin-top: .8mm; letter-spacing: .2pt; }
+    #printArea .pFoot { margin-top: 8mm; font-size: 8.5pt; color: #888; border-top: .5pt solid #ccc; padding-top: 2mm; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wunschbaum</h1>
+  <button class="primary" id="btnAddPerson">+ Person</button>
+  <button id="btnAddWish">+ Wunsch</button>
+  <button id="btnLink">Verbinden</button>
+  <button id="btnSide">Liste ausblenden</button>
+  <span class="spacer"></span>
+  <button class="ghost" id="btnPdf">PDF</button>
+  <button class="ghost" id="btnExport">Backup</button>
+  <button class="ghost" id="btnImport">Import</button>
+  <button class="ghost danger" id="btnReset">Alles löschen</button>
+  <input type="file" id="fileIn" accept="application/json" hidden>
+</header>
+
+<div id="printArea"></div>
+
+<main>
+  <div id="canvasWrap">
+    <div id="canvas"><svg id="lines"></svg></div>
+  </div>
+
+  <aside>
+    <div class="sideHead">
+      <h2 id="sideTitle">Alle Wünsche</h2>
+      <div class="row" id="filterOcc">
+        <button class="chipBtn on" data-occ="all">Alle</button>
+        <button class="chipBtn" data-occ="bday">Geburtstag</button>
+        <button class="chipBtn" data-occ="xmas">Weihnachten</button>
+      </div>
+      <div class="row" id="filterType">
+        <button class="chipBtn on" data-type="all">Alle</button>
+        <button class="chipBtn" data-type="real">Realistisch</button>
+        <button class="chipBtn" data-type="unreal">Unrealistisch</button>
+        <button class="chipBtn ghost" id="btnClearPerson" style="display:none">Personen-Filter aus</button>
+      </div>
+    </div>
+    <div id="wishList"></div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+
+/* ================= State ================= */
+const KEY = "wunschbaum_v1";
+const UIKEY = "wunschbaum_ui_side";
+const MAX_VISIBLE = 3;
+let state = { people: [], links: [], wishes: [] };
+let mode = "normal";        // "normal" | "link"
+let linkFirst = null;
+let selPerson = null;
+let fOcc = "all", fType = "all";
+const expanded = new Set();  // Personen, deren Wunschliste aufgeklappt ist
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+const $ = id => document.getElementById(id);
+const spacerEl = () => { const s = document.createElement("span"); s.className = "spacer"; return s; };
+
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      state = {
+        people: Array.isArray(d.people) ? d.people : [],
+        links:  Array.isArray(d.links)  ? d.links  : [],
+        wishes: Array.isArray(d.wishes) ? d.wishes : []
+      };
+      state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+    }
+  } catch (e) { console.warn("Laden fehlgeschlagen", e); }
+}
+
+let warned = false;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) {
+    console.warn("Speichern fehlgeschlagen", e);
+    if (!warned) {
+      warned = true;
+      const b = document.createElement("div");
+      b.style.cssText = "background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca;padding:8px 14px;font-size:12.5px";
+      b.textContent = "Achtung: Dieser Browser speichert nichts automatisch. Nutze „Export“, sonst sind deine Daten beim Schließen weg.";
+      document.body.insertBefore(b, document.body.firstChild);
+    }
+  }
+}
+
+const personById = id => state.people.find(p => p.id === id);
+const wishById   = id => state.wishes.find(w => w.id === id);
+const OCC = { bday: ["Geburtstag", "bday"], xmas: ["Weihnachten", "xmas"], both: ["Geb. + Weihn.", "both"] };
+
+/* leichte, aber stabile Schräglage je Zettel */
+function rotOf(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  return (((h % 7) + 7) % 7 - 3) * 0.5;   // -1.5° .. +1.5°
+}
+
+/* ================= Render: Personen ================= */
+const canvas = $("canvas");
+const svg = $("lines");
+
+function render() { renderPeople(); renderLines(); renderWishes(); }
+
+function renderPeople() {
+  [...canvas.querySelectorAll(".person")].forEach(n => n.remove());
+
+  state.people.forEach(p => {
+    const el = document.createElement("div");
+    el.className = "person postit" + (selPerson === p.id ? " sel" : "") + (linkFirst === p.id ? " link1" : "");
+    el.style.left = p.x + "px";
+    el.style.top = p.y + "px";
+    el.style.transform = "rotate(" + rotOf(p.id) + "deg)";
+    el.dataset.id = p.id;
+
+    const nm = document.createElement("div");
+    nm.className = "nm"; nm.textContent = p.name;
+    el.appendChild(nm);
+
+    if (p.role) {
+      const rl = document.createElement("div");
+      rl.className = "rl"; rl.textContent = p.role;
+      el.appendChild(rl);
+    }
+
+    const my = state.wishes
+      .filter(w => w.people.includes(p.id))
+      .sort((a, b) => (a.done - b.done) || (b.created - a.created));
+
+    if (!my.length) {
+      const n = document.createElement("div");
+      n.className = "none"; n.textContent = "noch keine Wünsche";
+      el.appendChild(n);
+    } else {
+      const isOpen = expanded.has(p.id);
+      const show = isOpen ? my : my.slice(0, MAX_VISIBLE);
+
+      const box = document.createElement("div");
+      box.className = "wishes";
+
+      show.forEach(w => {
+        const mw = document.createElement("div");
+        mw.className = "mini" + (w.realistic ? "" : " u") + (w.done ? " done" : "");
+        mw.dataset.wid = w.id;
+
+        const t = document.createElement("div");
+        t.className = "mt"; t.textContent = w.text;
+        mw.appendChild(t);
+
+        if (w.note) {
+          const n = document.createElement("div");
+          n.className = "mn"; n.textContent = w.note;
+          mw.appendChild(n);
+        }
+
+        const o = document.createElement("div");
+        o.className = "mo";
+        o.textContent = (OCC[w.occ] || OCC.bday)[0];
+        mw.appendChild(o);
+
+        box.appendChild(mw);
+      });
+
+      if (my.length > MAX_VISIBLE) {
+        const b = document.createElement("button");
+        b.className = "moreBtn";
+        b.dataset.toggle = p.id;
+        b.textContent = isOpen ? "weniger anzeigen" : "+" + (my.length - MAX_VISIBLE) + " weitere";
+        box.appendChild(b);
+      }
+      el.appendChild(box);
+    }
+    canvas.appendChild(el);
+  });
+}
+
+function centerOf(id) {
+  const el = canvas.querySelector('.person[data-id="' + id + '"]');
+  const p = personById(id);
+  if (!el || !p) return null;
+  return { x: p.x + el.offsetWidth / 2, y: p.y + el.offsetHeight / 2 };
+}
+
+function renderLines() {
+  svg.innerHTML = "";
+  const NS = "http://www.w3.org/2000/svg";
+  state.links.forEach(l => {
+    const a = centerOf(l.a), b = centerOf(l.b);
+    if (!a || !b) return;
+    const mk = cls => {
+      const ln = document.createElementNS(NS, "line");
+      ln.setAttribute("x1", a.x); ln.setAttribute("y1", a.y);
+      ln.setAttribute("x2", b.x); ln.setAttribute("y2", b.y);
+      if (cls) ln.setAttribute("class", cls);
+      return ln;
+    };
+    svg.appendChild(mk(""));
+    const hit = mk("hit");
+    hit.addEventListener("click", () => {
+      if (confirm("Verbindung löschen?")) {
+        state.links = state.links.filter(x => x.id !== l.id);
+        save(); render();
+      }
+    });
+    svg.appendChild(hit);
+  });
+}
+
+/* ================= Render: Seitenleiste ================= */
+function renderWishes() {
+  const list = $("wishList");
+  list.innerHTML = "";
+
+  const p = selPerson ? personById(selPerson) : null;
+  $("sideTitle").textContent = p ? "Wünsche von " + p.name : "Alle Wünsche";
+  $("btnClearPerson").style.display = p ? "" : "none";
+
+  let ws = state.wishes.slice();
+  if (p) ws = ws.filter(w => w.people.includes(p.id));
+  if (fOcc !== "all") ws = ws.filter(w => w.occ === fOcc || w.occ === "both");
+  if (fType !== "all") ws = ws.filter(w => (fType === "real") === !!w.realistic);
+  ws.sort((a, b) => (a.done - b.done) || (b.created - a.created));
+
+  if (!ws.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = state.wishes.length
+      ? "Keine Wünsche für diesen Filter."
+      : "Noch keine Wünsche. Lege zuerst Personen an, dann Wünsche.";
+    list.appendChild(e);
+    return;
+  }
+
+  ws.forEach(w => {
+    const el = document.createElement("div");
+    el.className = "wish postit" + (w.realistic ? "" : " unreal") + (w.done ? " done" : "");
+
+    const t = document.createElement("div");
+    t.className = "txt"; t.textContent = w.text;
+    el.appendChild(t);
+
+    if (w.note) {
+      const n = document.createElement("div");
+      n.className = "note"; n.textContent = w.note;
+      el.appendChild(n);
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+
+    const occ = OCC[w.occ] || OCC.bday;
+    const to = document.createElement("span");
+    to.className = "tag " + occ[1]; to.textContent = occ[0];
+    meta.appendChild(to);
+
+    const tt = document.createElement("span");
+    tt.className = "tag";
+    tt.textContent = w.realistic ? "realistisch" : "unrealistisch";
+    meta.appendChild(tt);
+
+    w.people.forEach(pid => {
+      const per = personById(pid);
+      if (!per) return;
+      const s = document.createElement("span");
+      s.className = "tag"; s.textContent = per.name;
+      meta.appendChild(s);
+    });
+    el.appendChild(meta);
+
+    const acts = document.createElement("div");
+    acts.className = "acts";
+    const bd = document.createElement("button");
+    bd.textContent = w.done ? "Zurücksetzen" : "Erledigt";
+    bd.onclick = () => { w.done = !w.done; save(); render(); };
+    const be = document.createElement("button");
+    be.textContent = "Bearbeiten"; be.onclick = () => wishModal(w);
+    const bx = document.createElement("button");
+    bx.textContent = "Löschen"; bx.className = "danger";
+    bx.onclick = () => {
+      if (confirm("Wunsch löschen?")) {
+        state.wishes = state.wishes.filter(x => x.id !== w.id);
+        save(); render();
+      }
+    };
+    acts.append(bd, be, bx);
+    el.appendChild(acts);
+    list.appendChild(el);
+  });
+}
+
+/* ================= Ziehen + Klicken ================= */
+let drag = null;
+
+canvas.addEventListener("pointerdown", e => {
+  const el = e.target.closest(".person");
+  if (!el) return;
+  const p = personById(el.dataset.id);
+  if (!p) return;
+  const r = canvas.getBoundingClientRect();
+  const mini = e.target.closest(".mini");
+  const more = e.target.closest(".moreBtn");
+  drag = {
+    id: p.id, el, moved: false,
+    dx: e.clientX - r.left - p.x,
+    dy: e.clientY - r.top - p.y,
+    wid: mini ? mini.dataset.wid : null,
+    toggle: more ? more.dataset.toggle : null
+  };
+  el.setPointerCapture(e.pointerId);
+});
+
+canvas.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const p = personById(drag.id);
+  const r = canvas.getBoundingClientRect();
+  const nx = Math.max(0, Math.min(canvas.offsetWidth - drag.el.offsetWidth, e.clientX - r.left - drag.dx));
+  const ny = Math.max(0, Math.min(canvas.offsetHeight - drag.el.offsetHeight, e.clientY - r.top - drag.dy));
+  if (Math.abs(nx - p.x) > 3 || Math.abs(ny - p.y) > 3) drag.moved = true;
+  p.x = nx; p.y = ny;
+  drag.el.style.left = nx + "px";
+  drag.el.style.top = ny + "px";
+  renderLines();
+});
+
+canvas.addEventListener("pointerup", () => {
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+  if (d.moved) { save(); return; }
+
+  if (mode === "link") {
+    if (!linkFirst) { linkFirst = d.id; renderPeople(); return; }
+    if (linkFirst === d.id) { linkFirst = null; renderPeople(); return; }
+    const dup = state.links.some(l =>
+      (l.a === linkFirst && l.b === d.id) || (l.a === d.id && l.b === linkFirst));
+    if (!dup) state.links.push({ id: uid(), a: linkFirst, b: d.id });
+    linkFirst = null; save(); render();
+    return;
+  }
+
+  if (d.toggle) {
+    expanded.has(d.toggle) ? expanded.delete(d.toggle) : expanded.add(d.toggle);
+    renderPeople(); renderLines();
+    return;
+  }
+  if (d.wid) { const w = wishById(d.wid); if (w) { wishModal(w); return; } }
+
+  selPerson = (selPerson === d.id) ? null : d.id;
+  render();
+});
+
+canvas.addEventListener("dblclick", e => {
+  if (e.target.closest(".mini") || e.target.closest(".moreBtn")) return;
+  const el = e.target.closest(".person");
+  if (el) personModal(personById(el.dataset.id));
+});
+
+/* ================= Modal-Gerüst ================= */
+let closeModal = null;
+function openModal(build) {
+  const bd = document.createElement("div");
+  bd.className = "backdrop";
+  const m = document.createElement("div");
+  m.className = "modal";
+  bd.appendChild(m);
+  document.body.appendChild(bd);
+  closeModal = () => { bd.remove(); closeModal = null; };
+  bd.addEventListener("mousedown", e => { if (e.target === bd) closeModal(); });
+  build(m);
+}
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if (closeModal) closeModal();
+  else if (mode === "link") setLinkMode(false);
+});
+
+/* ================= Person-Modal ================= */
+function personModal(person) {
+  openModal(m => {
+    m.innerHTML =
+      "<h3>" + (person ? "Person bearbeiten" : "Person hinzufügen") + "</h3>" +
+      '<label>Name</label><input type="text" id="pName" placeholder="z. B. Opa">' +
+      '<label>Zusatz (optional)</label><input type="text" id="pRole" placeholder="z. B. mütterlicherseits">' +
+      '<div class="hint">Du kannst denselben Namen mehrfach anlegen (z. B. zwei Mal „Opa“). Der Zusatz hilft beim Unterscheiden.</div>';
+
+    const acts = document.createElement("div");
+    acts.className = "modalActs";
+    if (person) {
+      const del = document.createElement("button");
+      del.className = "danger"; del.textContent = "Löschen";
+      del.onclick = () => {
+        if (!confirm("Person löschen? Ihre Verbindungen werden entfernt.")) return;
+        state.people = state.people.filter(p => p.id !== person.id);
+        state.links = state.links.filter(l => l.a !== person.id && l.b !== person.id);
+        state.wishes.forEach(w => { w.people = w.people.filter(id => id !== person.id); });
+        state.wishes = state.wishes.filter(w => w.people.length);
+        if (selPerson === person.id) selPerson = null;
+        expanded.delete(person.id);
+        save(); render(); closeModal();
+      };
+      acts.appendChild(del);
+    }
+    acts.appendChild(spacerEl());
+    const cancel = document.createElement("button");
+    cancel.textContent = "Abbrechen"; cancel.onclick = () => closeModal();
+    const ok = document.createElement("button");
+    ok.className = "primary"; ok.textContent = "Speichern";
+    ok.onclick = () => {
+      const name = m.querySelector("#pName").value.trim();
+      if (!name) { m.querySelector("#pName").focus(); return; }
+      const role = m.querySelector("#pRole").value.trim();
+      if (person) { person.name = name; person.role = role; }
+      else {
+        const i = state.people.length;
+        state.people.push({
+          id: uid(), name, role,
+          x: 60 + (i % 5) * 240,
+          y: 50 + Math.floor(i / 5) * 260
+        });
+      }
+      save(); render(); closeModal();
+    };
+    acts.append(cancel, ok);
+    m.appendChild(acts);
+
+    if (person) {
+      m.querySelector("#pName").value = person.name;
+      m.querySelector("#pRole").value = person.role || "";
+    }
+    m.querySelector("#pName").focus();
+  });
+}
+
+/* ================= Wunsch-Modal ================= */
+function wishModal(wish) {
+  if (!state.people.length) { alert("Lege zuerst mindestens eine Person an."); return; }
+
+  openModal(m => {
+    let occ = wish ? wish.occ : "bday";
+    let real = wish ? !!wish.realistic : true;
+    const chosen = new Set(wish ? wish.people : (selPerson ? [selPerson] : []));
+
+    m.innerHTML =
+      "<h3>" + (wish ? "Wunsch bearbeiten" : "Wunsch hinzufügen") + "</h3>" +
+      '<label>Wunsch</label><textarea id="wTxt" placeholder="z. B. neue Kopfhörer"></textarea>' +
+      '<label>Notiz (optional)</label><input type="text" id="wNote" placeholder="z. B. Größe M, schwarz, ca. 80 €">' +
+      '<label>Anlass</label><div class="segs" id="segOcc">' +
+        '<button data-v="bday">Geburtstag</button>' +
+        '<button data-v="xmas">Weihnachten</button>' +
+        '<button data-v="both">Beides</button></div>' +
+      '<label>Art</label><div class="segs" id="segType">' +
+        '<button data-v="1">Realistisch</button>' +
+        '<button data-v="0">Unrealistisch</button></div>' +
+      '<label>Von wem? (mehrere möglich)</label><div class="checks" id="wPeople"></div>';
+
+    const segOcc = m.querySelector("#segOcc");
+    const segType = m.querySelector("#segType");
+    const paint = () => {
+      [...segOcc.children].forEach(b => b.classList.toggle("active", b.dataset.v === occ));
+      [...segType.children].forEach(b => b.classList.toggle("active", (b.dataset.v === "1") === real));
+    };
+    segOcc.onclick = e => { const b = e.target.closest("button"); if (b) { occ = b.dataset.v; paint(); } };
+    segType.onclick = e => { const b = e.target.closest("button"); if (b) { real = b.dataset.v === "1"; paint(); } };
+    paint();
+
+    const box = m.querySelector("#wPeople");
+    state.people.forEach(p => {
+      const lab = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox"; cb.value = p.id; cb.checked = chosen.has(p.id);
+      cb.onchange = () => cb.checked ? chosen.add(p.id) : chosen.delete(p.id);
+      lab.append(cb, document.createTextNode(p.name + (p.role ? " (" + p.role + ")" : "")));
+      box.appendChild(lab);
+    });
+
+    const acts = document.createElement("div");
+    acts.className = "modalActs";
+    if (wish) {
+      const del = document.createElement("button");
+      del.className = "danger"; del.textContent = "Löschen";
+      del.onclick = () => {
+        if (!confirm("Wunsch löschen?")) return;
+        state.wishes = state.wishes.filter(x => x.id !== wish.id);
+        save(); render(); closeModal();
+      };
+      acts.appendChild(del);
+    }
+    acts.appendChild(spacerEl());
+    const cancel = document.createElement("button");
+    cancel.textContent = "Abbrechen"; cancel.onclick = () => closeModal();
+    const ok = document.createElement("button");
+    ok.className = "primary"; ok.textContent = "Speichern";
+    ok.onclick = () => {
+      const text = m.querySelector("#wTxt").value.trim();
+      if (!text) { m.querySelector("#wTxt").focus(); return; }
+      if (!chosen.size) { alert("Wähle mindestens eine Person aus."); return; }
+      const note = m.querySelector("#wNote").value.trim();
+      if (wish) {
+        Object.assign(wish, { text, note, occ, realistic: real, people: [...chosen] });
+      } else {
+        state.wishes.push({
+          id: uid(), text, note, occ, realistic: real,
+          people: [...chosen], done: false, created: Date.now()
+        });
+      }
+      save(); render(); closeModal();
+    };
+    acts.append(cancel, ok);
+    m.appendChild(acts);
+
+    if (wish) {
+      m.querySelector("#wTxt").value = wish.text;
+      m.querySelector("#wNote").value = wish.note || "";
+    }
+    m.querySelector("#wTxt").focus();
+  });
+}
+
+/* ================= Header-Aktionen ================= */
+function setLinkMode(on) {
+  mode = on ? "link" : "normal";
+  linkFirst = null;
+  $("btnLink").classList.toggle("active", on);
+  $("btnLink").textContent = on ? "Verbinden: an (Esc)" : "Verbinden";
+  renderPeople();
+}
+
+$("btnAddPerson").onclick = () => personModal(null);
+$("btnAddWish").onclick = () => wishModal(null);
+$("btnLink").onclick = () => setLinkMode(mode !== "link");
+
+$("btnExport").onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wunschbaum.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+
+/* ---- Sidebar ein-/ausklappen ---- */
+function setSide(hidden) {
+  document.body.classList.toggle("noside", hidden);
+  $("btnSide").textContent = hidden ? "Liste einblenden" : "Liste ausblenden";
+  $("btnSide").classList.toggle("active", hidden);
+  try { localStorage.setItem(UIKEY, hidden ? "1" : "0"); } catch (e) {}
+  renderLines();
+}
+$("btnSide").onclick = () => setSide(!document.body.classList.contains("noside"));
+
+/* ---- PDF (über die Druckansicht) ---- */
+function buildPrint() {
+  const a = $("printArea");
+  a.innerHTML = "";
+
+  const h1 = document.createElement("h1");
+  h1.textContent = "Meine Wunschliste";
+  a.appendChild(h1);
+
+  const dt = document.createElement("div");
+  dt.className = "pDate";
+  dt.textContent = "Stand: " + new Date().toLocaleDateString("de-AT", {
+    day: "2-digit", month: "long", year: "numeric"
+  });
+  a.appendChild(dt);
+
+  let printed = 0;
+
+  state.people.forEach(p => {
+    const my = state.wishes
+      .filter(w => w.people.includes(p.id))
+      .sort((x, y) => (x.done - y.done) || (y.created - x.created));
+    if (!my.length) return;
+    printed += my.length;
+
+    const sec = document.createElement("div");
+    sec.className = "pPerson";
+
+    const nm = document.createElement("div");
+    nm.className = "pName";
+    nm.textContent = p.name;
+    if (p.role) {
+      const s = document.createElement("span");
+      s.textContent = "  " + p.role;
+      nm.appendChild(s);
+    }
+    sec.appendChild(nm);
+
+    my.forEach(w => {
+      const row = document.createElement("div");
+      row.className = "pRow";
+
+      const bx = document.createElement("div");
+      bx.className = "pBox";
+      row.appendChild(bx);
+
+      const col = document.createElement("div");
+
+      const t = document.createElement("div");
+      t.className = "pTxt" + (w.done ? " done" : "");
+      t.textContent = w.text;
+      col.appendChild(t);
+
+      if (w.note) {
+        const n = document.createElement("div");
+        n.className = "pNote";
+        n.textContent = w.note;
+        col.appendChild(n);
+      }
+
+      const tg = document.createElement("div");
+      tg.className = "pTags";
+      const others = w.people.filter(id => id !== p.id).map(id => (personById(id) || {}).name).filter(Boolean);
+      tg.textContent = [
+        (OCC[w.occ] || OCC.bday)[0],
+        w.realistic ? "realistisch" : "unrealistisch",
+        others.length ? "zusammen mit " + others.join(", ") : null,
+        w.done ? "erledigt" : null
+      ].filter(Boolean).join("  ·  ");
+      col.appendChild(tg);
+
+      row.appendChild(col);
+      sec.appendChild(row);
+    });
+    a.appendChild(sec);
+  });
+
+  if (!printed) {
+    const e = document.createElement("div");
+    e.className = "pTxt";
+    e.textContent = "Noch keine Wünsche eingetragen.";
+    a.appendChild(e);
+  }
+
+  const f = document.createElement("div");
+  f.className = "pFoot";
+  f.textContent = state.people.length + " Personen  ·  " + state.wishes.length +
+    " Wünsche  ·  Wünsche für mehrere Personen stehen bei jeder davon.";
+  a.appendChild(f);
+}
+
+$("btnPdf").onclick = () => {
+  // In der Mac-App: echtes PDF direkt speichern. Im Browser: Druckdialog.
+  if (window.wunschbaum && window.wunschbaum.savePdf) { window.wunschbaum.savePdf(); return; }
+  buildPrint(); setTimeout(() => window.print(), 60);
+};
+
+$("btnImport").onclick = () => $("fileIn").click();
+$("fileIn").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.people)) throw new Error("bad");
+      state = {
+        people: d.people,
+        links: Array.isArray(d.links) ? d.links : [],
+        wishes: Array.isArray(d.wishes) ? d.wishes : []
+      };
+      state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+      selPerson = null; expanded.clear(); save(); render();
+    } catch (err) { alert("Datei konnte nicht gelesen werden."); }
+  };
+  r.readAsText(f);
+  e.target.value = "";
+};
+
+$("btnReset").onclick = () => {
+  if (!confirm("Wirklich alles löschen? Das lässt sich nicht rückgängig machen.")) return;
+  state = { people: [], links: [], wishes: [] };
+  selPerson = null; linkFirst = null; expanded.clear();
+  save(); render();
+};
+
+$("btnClearPerson").onclick = () => { selPerson = null; render(); };
+
+$("filterOcc").onclick = e => {
+  const b = e.target.closest("button[data-occ]"); if (!b) return;
+  fOcc = b.dataset.occ;
+  [...$("filterOcc").children].forEach(x => x.classList.toggle("on", x === b));
+  renderWishes();
+};
+$("filterType").onclick = e => {
+  const b = e.target.closest("button[data-type]"); if (!b) return;
+  fType = b.dataset.type;
+  [...$("filterType").querySelectorAll("button[data-type]")].forEach(x => x.classList.toggle("on", x === b));
+  renderWishes();
+};
+
+/* ================= Start ================= */
+load();
+try { setSide(localStorage.getItem(UIKEY) === "1"); } catch (e) { setSide(false); }
+if (!state.people.length && !state.wishes.length) {
+  const mama = { id: uid(), name: "Mama", role: "", x: 320, y: 60 };
+  const papa = { id: uid(), name: "Papa", role: "", x: 600, y: 60 };
+  const opa  = { id: uid(), name: "Opa",  role: "väterlicherseits", x: 880, y: 60 };
+  const ich  = { id: uid(), name: "Ich",  role: "", x: 460, y: 400 };
+  state.people = [mama, papa, opa, ich];
+  state.links = [
+    { id: uid(), a: mama.id, b: ich.id },
+    { id: uid(), a: papa.id, b: ich.id },
+    { id: uid(), a: papa.id, b: opa.id }
+  ];
+  const t = Date.now();
+  state.wishes = [
+    { id: uid(), text: "Neue Kopfhörer", note: "over-ear, schwarz", occ: "bday", realistic: true,  people: [mama.id, papa.id], done: false, created: t },
+    { id: uid(), text: "Ein Segelboot",  note: "",                  occ: "both", realistic: false, people: [papa.id, opa.id],  done: false, created: t - 1 }
+  ];
+  save();
+}
+render();
+</script>
+</body>
+</html>
