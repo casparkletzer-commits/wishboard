@@ -2,25 +2,32 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Wunschbaum">
+<meta name="theme-color" content="#ffffff">
 <title>Wunschbaum</title>
 <style>
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
+  @supports (height: 100dvh) { html, body { height: 100dvh; } }
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: #fff; color: #16181d; display: flex; flex-direction: column;
+    -webkit-text-size-adjust: 100%; overscroll-behavior: none;
   }
 
   /* ---------- Header ---------- */
   header {
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-    padding: 10px 14px; border-bottom: 1px solid #e6e8ec; background: #fff; z-index: 5;
+    padding: 10px 14px; padding-top: max(10px, env(safe-area-inset-top));
+    border-bottom: 1px solid #e6e8ec; background: #fff; z-index: 30; position: relative;
   }
   h1 { font-size: 16px; margin: 0 12px 0 0; font-weight: 600; letter-spacing: -.2px; }
   button {
     font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px;
     border: 1px solid #d7dae0; background: #fff; color: #16181d; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
   button:hover { background: #f4f5f7; }
   button.primary { background: #16181d; color: #fff; border-color: #16181d; }
@@ -29,12 +36,19 @@
   button.ghost { border-color: transparent; color: #6b7280; }
   button.ghost:hover { background: #f4f5f7; }
   .spacer { flex: 1; }
+  #more { display: contents; }
+  #btnMore { display: none; }
 
   /* ---------- Layout ---------- */
   main { flex: 1; display: flex; min-height: 0; }
-  #canvasWrap { flex: 1; overflow: auto; position: relative; }
+  #canvasWrap {
+    flex: 1; overflow: auto; position: relative;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  }
+  #canvasScale { position: relative; }
   #canvas {
-    position: relative; width: 2400px; height: 1800px;
+    position: absolute; top: 0; left: 0; width: 2400px; height: 1800px;
+    transform-origin: 0 0;
     background-color: #fff;
     background-image:
       linear-gradient(rgba(22,24,29,.055) 1px, transparent 1px),
@@ -45,7 +59,19 @@
   }
   #lines { position: absolute; inset: 0; width: 100%; height: 100%; }
   #lines line { stroke: #9aa2ae; stroke-width: 2.5; }
-  #lines line.hit { stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; }
+  #lines line.hit { stroke: transparent; stroke-width: 20; cursor: pointer; pointer-events: stroke; }
+
+  /* ---------- Zoom-Leiste ---------- */
+  #zoomBar {
+    position: absolute; left: 12px; bottom: 12px;
+    bottom: max(12px, env(safe-area-inset-bottom)); z-index: 15;
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(255,255,255,.94); border: 1px solid #e0e3e8; border-radius: 10px;
+    padding: 4px; box-shadow: 0 3px 10px rgba(22,24,29,.14);
+    backdrop-filter: blur(6px);
+  }
+  #zoomBar button { padding: 6px 10px; font-size: 14px; line-height: 1; border-color: transparent; }
+  #zVal { font-size: 11px; color: #6b7280; min-width: 38px; text-align: center; }
 
   /* ---------- Post-it Grundlook ---------- */
   .postit { position: relative; border-radius: 3px; }
@@ -69,7 +95,8 @@
   .person {
     position: absolute; width: 200px;
     background: #fdf0a6;
-    padding: 20px 12px 12px; cursor: grab; user-select: none; touch-action: none;
+    padding: 20px 12px 12px; cursor: grab; user-select: none; -webkit-user-select: none;
+    touch-action: none;
     box-shadow: 0 8px 16px -8px rgba(22,24,29,.45), 0 2px 4px rgba(22,24,29,.1);
   }
   .person:active { cursor: grabbing; }
@@ -81,7 +108,7 @@
   .person .none { font-size: 11px; color: #9a8b3f; margin-top: 8px; font-style: italic; }
 
   .mini {
-    background: #eafbe7; border-radius: 3px; padding: 6px 7px 5px;
+    background: #eafbe7; border-radius: 3px; padding: 7px 8px 6px;
     box-shadow: 0 2px 3px -1px rgba(22,24,29,.22);
     background-image: linear-gradient(180deg, rgba(255,255,255,.75), rgba(255,255,255,0) 12px);
     cursor: pointer; position: relative;
@@ -93,24 +120,25 @@
   .mini .mn { font-size: 10.5px; color: #4b5563; margin-top: 3px; line-height: 1.3; font-style: italic; }
   .mini .mo { font-size: 9.5px; margin-top: 3px; letter-spacing: .3px; text-transform: uppercase; opacity: .65; }
   .moreBtn {
-    font-size: 11px; padding: 3px 7px; border-radius: 6px; align-self: flex-start;
+    font-size: 11px; padding: 5px 9px; border-radius: 6px; align-self: flex-start;
     border: 1px solid rgba(22,24,29,.18); background: rgba(255,255,255,.6); cursor: pointer;
   }
 
-  /* ---------- Sidebar ---------- */
+  /* ---------- Seitenleiste ---------- */
   aside {
     width: 360px; flex: 0 0 360px; border-left: 1px solid #e6e8ec;
     display: flex; flex-direction: column; min-height: 0; background: #fff;
   }
-  .sideHead { padding: 12px 14px 10px; border-bottom: 1px solid #eef0f3; }
+  .sideHead { padding: 12px 14px 10px; border-bottom: 1px solid #eef0f3; position: relative; }
   .sideHead .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .sideHead h2 { font-size: 13px; margin: 0; font-weight: 600; }
+  #sideClose { display: none; position: absolute; right: 10px; top: 8px; padding: 4px 10px; font-size: 15px; }
   .chipBtn {
-    font-size: 12px; padding: 4px 9px; border-radius: 999px;
+    font-size: 12px; padding: 5px 10px; border-radius: 999px;
     border: 1px solid #d7dae0; background: #fff; cursor: pointer;
   }
   .chipBtn.on { background: #16181d; color: #fff; border-color: #16181d; }
-  #wishList { flex: 1; overflow: auto; padding: 14px; background: #fafbfc; }
+  #wishList { flex: 1; overflow: auto; padding: 14px; background: #fafbfc; -webkit-overflow-scrolling: touch; }
 
   .wish {
     background: #eafbe7; padding: 19px 11px 11px; margin-bottom: 10px;
@@ -127,7 +155,7 @@
   .tag.xmas { color: #166534; }
   .tag.both { color: #1e40af; }
   .wish .acts { display: flex; gap: 4px; margin-top: 9px; }
-  .wish .acts button { font-size: 11.5px; padding: 3px 8px; background: rgba(255,255,255,.75); border-color: rgba(22,24,29,.15); }
+  .wish .acts button { font-size: 11.5px; padding: 5px 9px; background: rgba(255,255,255,.75); border-color: rgba(22,24,29,.15); }
   .empty { color: #9ca3af; font-size: 13px; padding: 18px 2px; line-height: 1.5; }
 
   /* ---------- Modal ---------- */
@@ -138,6 +166,7 @@
   .modal {
     background: #fff; border-radius: 14px; width: 100%; max-width: 420px;
     max-height: 88vh; overflow: auto; padding: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.2);
+    -webkit-overflow-scrolling: touch;
   }
   .modal h3 { margin: 0 0 14px; font-size: 15px; }
   label { display: block; font-size: 12px; color: #6b7280; margin: 12px 0 5px; }
@@ -147,8 +176,8 @@
   }
   textarea { min-height: 62px; resize: vertical; }
   .checks { max-height: 170px; overflow: auto; border: 1px solid #e6e8ec; border-radius: 8px; padding: 6px; }
-  .checks label { display: flex; align-items: center; gap: 8px; margin: 0; padding: 5px 4px; font-size: 13.5px; color: #16181d; cursor: pointer; }
-  .checks input { margin: 0; }
+  .checks label { display: flex; align-items: center; gap: 10px; margin: 0; padding: 8px 4px; font-size: 13.5px; color: #16181d; cursor: pointer; }
+  .checks input { margin: 0; width: 18px; height: 18px; }
   .segs { display: flex; gap: 6px; }
   .segs button { flex: 1; }
   .modalActs { display: flex; gap: 8px; margin-top: 18px; }
@@ -156,14 +185,52 @@
   .danger:hover { background: #fef2f2; }
   .hint { font-size: 11.5px; color: #9ca3af; margin-top: 6px; line-height: 1.4; }
 
-  @media (max-width: 860px) {
-    main { flex-direction: column; }
-    aside { width: auto; flex: 0 0 45%; border-left: none; border-top: 1px solid #e6e8ec; }
-    #canvasWrap { flex: 1 1 55%; }
-  }
-
-  /* ---------- Sidebar einklappen ---------- */
+  /* ---------- Seitenleiste einklappen ---------- */
   body.noside aside { display: none; }
+
+  /* ================= HANDY ================= */
+  @media (max-width: 860px) {
+    header { gap: 6px; padding: 8px 10px; padding-top: max(8px, env(safe-area-inset-top)); }
+    h1 { font-size: 15px; margin-right: 4px; width: 100%; }
+    header button { font-size: 13px; padding: 8px 11px; }
+    .spacer { display: none; }
+
+    /* Selten gebrauchte Buttons in ein Menue */
+    #btnMore { display: inline-block; margin-left: auto; }
+    #more {
+      display: none; position: absolute; right: 10px; top: calc(100% - 4px);
+      background: #fff; border: 1px solid #e0e3e8; border-radius: 10px; padding: 6px;
+      box-shadow: 0 8px 24px rgba(22,24,29,.18); z-index: 40;
+      flex-direction: column; gap: 2px; min-width: 160px;
+    }
+    #more.open { display: flex; }
+    #more button { text-align: left; width: 100%; color: #16181d; }
+
+    /* Seitenleiste als Overlay von unten */
+    main { flex-direction: column; }
+    aside {
+      position: fixed; left: 0; right: 0; bottom: 0; width: auto; flex: none;
+      height: 64dvh; z-index: 25;
+      border-left: none; border-top: 1px solid #e0e3e8;
+      border-radius: 14px 14px 0 0;
+      box-shadow: 0 -8px 30px rgba(22,24,29,.22);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    #sideClose { display: block; }
+    .sideHead { padding-right: 62px; }
+
+    /* iOS zoomt bei Feldern unter 16px automatisch rein */
+    input[type=text], textarea, select { font-size: 16px; }
+
+    /* Modale als Sheet von unten */
+    .backdrop { align-items: flex-end; padding: 0; }
+    .modal {
+      max-width: 100%; border-radius: 16px 16px 0 0; max-height: 88dvh;
+      padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+    }
+    .modalActs button { padding: 10px 12px; }
+    .segs button { padding: 10px 6px; }
+  }
 
   /* ---------- Druck / PDF ---------- */
   #printArea { display: none; }
@@ -201,12 +268,15 @@
   <button class="primary" id="btnAddPerson">+ Person</button>
   <button id="btnAddWish">+ Wunsch</button>
   <button id="btnLink">Verbinden</button>
-  <button id="btnSide">Liste ausblenden</button>
+  <button id="btnSide">Liste</button>
   <span class="spacer"></span>
-  <button class="ghost" id="btnPdf">PDF</button>
-  <button class="ghost" id="btnExport">Backup</button>
-  <button class="ghost" id="btnImport">Import</button>
-  <button class="ghost danger" id="btnReset">Alles löschen</button>
+  <button id="btnMore" aria-label="Mehr">•••</button>
+  <div id="more">
+    <button class="ghost" id="btnPdf">PDF</button>
+    <button class="ghost" id="btnExport">Backup</button>
+    <button class="ghost" id="btnImport">Import</button>
+    <button class="ghost danger" id="btnReset">Alles löschen</button>
+  </div>
   <input type="file" id="fileIn" accept="application/json" hidden>
 </header>
 
@@ -214,11 +284,20 @@
 
 <main>
   <div id="canvasWrap">
-    <div id="canvas"><svg id="lines"></svg></div>
+    <div id="canvasScale">
+      <div id="canvas"><svg id="lines"></svg></div>
+    </div>
+    <div id="zoomBar">
+      <button id="zOut" aria-label="Kleiner">−</button>
+      <span id="zVal">100%</span>
+      <button id="zIn" aria-label="Größer">+</button>
+      <button id="zFit" aria-label="Alles zeigen">Alles</button>
+    </div>
   </div>
 
   <aside>
     <div class="sideHead">
+      <button id="sideClose" aria-label="Liste schließen">✕</button>
       <h2 id="sideTitle">Alle Wünsche</h2>
       <div class="row" id="filterOcc">
         <button class="chipBtn on" data-occ="all">Alle</button>
@@ -242,17 +321,27 @@
 /* ================= State ================= */
 const KEY = "wunschbaum_v1";
 const UIKEY = "wunschbaum_ui_side";
+const ZKEY = "wunschbaum_ui_zoom";
 const MAX_VISIBLE = 3;
+const BASE_W = 2400, BASE_H = 1800;
+
 let state = { people: [], links: [], wishes: [] };
-let mode = "normal";        // "normal" | "link"
+let mode = "normal";
 let linkFirst = null;
 let selPerson = null;
 let fOcc = "all", fType = "all";
-const expanded = new Set();  // Personen, deren Wunschliste aufgeklappt ist
+let zoom = 1;
+const expanded = new Set();
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const $ = id => document.getElementById(id);
 const spacerEl = () => { const s = document.createElement("span"); s.className = "spacer"; return s; };
+const isPhone = () => {
+  try {
+    if (window.matchMedia) return window.matchMedia("(max-width: 860px)").matches;
+  } catch (e) {}
+  return (window.innerWidth || 1200) <= 860;
+};
 
 function load() {
   try {
@@ -278,7 +367,7 @@ function save() {
       warned = true;
       const b = document.createElement("div");
       b.style.cssText = "background:#fef2f2;color:#991b1b;border-bottom:1px solid #fecaca;padding:8px 14px;font-size:12.5px";
-      b.textContent = "Achtung: Dieser Browser speichert nichts automatisch. Nutze „Export“, sonst sind deine Daten beim Schließen weg.";
+      b.textContent = "Achtung: Dieser Browser speichert nichts automatisch. Nutze „Backup“, sonst sind deine Daten beim Schließen weg.";
       document.body.insertBefore(b, document.body.firstChild);
     }
   }
@@ -288,17 +377,73 @@ const personById = id => state.people.find(p => p.id === id);
 const wishById   = id => state.wishes.find(w => w.id === id);
 const OCC = { bday: ["Geburtstag", "bday"], xmas: ["Weihnachten", "xmas"], both: ["Geb. + Weihn.", "both"] };
 
-/* leichte, aber stabile Schräglage je Zettel */
 function rotOf(id) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
-  return (((h % 7) + 7) % 7 - 3) * 0.5;   // -1.5° .. +1.5°
+  return (((h % 7) + 7) % 7 - 3) * 0.5;
 }
 
-/* ================= Render: Personen ================= */
+/* ================= Zoom ================= */
 const canvas = $("canvas");
+const canvasScale = $("canvasScale");
+const wrap = $("canvasWrap");
 const svg = $("lines");
 
+function applyZoom(z, keepCenter) {
+  const old = zoom;
+  zoom = Math.min(2, Math.max(0.2, z));
+
+  let cx = 0, cy = 0;
+  if (keepCenter) {
+    cx = (wrap.scrollLeft + wrap.clientWidth / 2) / old;
+    cy = (wrap.scrollTop + wrap.clientHeight / 2) / old;
+  }
+
+  canvas.style.transform = "scale(" + zoom + ")";
+  canvasScale.style.width = (BASE_W * zoom) + "px";
+  canvasScale.style.height = (BASE_H * zoom) + "px";
+  $("zVal").textContent = Math.round(zoom * 100) + "%";
+
+  if (keepCenter) {
+    wrap.scrollLeft = cx * zoom - wrap.clientWidth / 2;
+    wrap.scrollTop = cy * zoom - wrap.clientHeight / 2;
+  }
+  try { localStorage.setItem(ZKEY, String(zoom)); } catch (e) {}
+}
+
+function contentBox() {
+  const els = [...canvas.querySelectorAll(".person")];
+  if (!els.length) return null;
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  els.forEach(el => {
+    const p = personById(el.dataset.id);
+    if (!p) return;
+    x1 = Math.min(x1, p.x); y1 = Math.min(y1, p.y);
+    x2 = Math.max(x2, p.x + el.offsetWidth);
+    y2 = Math.max(y2, p.y + el.offsetHeight);
+  });
+  if (x1 === Infinity) return null;
+  return { x1, y1, x2, y2, w: x2 - x1, h: y2 - y1 };
+}
+
+function fitToContent() {
+  const b = contentBox();
+  if (!b) { applyZoom(1, false); return; }
+  const pad = 28;
+  const zx = (wrap.clientWidth - pad * 2) / b.w;
+  const zy = (wrap.clientHeight - pad * 2) / b.h;
+  // Nicht kleiner als 35 %, sonst kann man nichts mehr lesen
+  const z = Math.max(0.35, Math.min(1, zx, zy));
+  applyZoom(z, false);
+  wrap.scrollLeft = Math.max(0, b.x1 * z - pad);
+  wrap.scrollTop = Math.max(0, b.y1 * z - pad);
+}
+
+$("zIn").onclick = () => applyZoom(zoom * 1.25, true);
+$("zOut").onclick = () => applyZoom(zoom / 1.25, true);
+$("zFit").onclick = () => fitToContent();
+
+/* ================= Render: Personen ================= */
 function render() { renderPeople(); renderLines(); renderWishes(); }
 
 function renderPeople() {
@@ -487,41 +632,57 @@ function renderWishes() {
   });
 }
 
-/* ================= Ziehen + Klicken ================= */
+/* ================= Ziehen + Tippen ================= */
 let drag = null;
+let longPress = null;
+
+function toCanvas(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom };
+}
 
 canvas.addEventListener("pointerdown", e => {
   const el = e.target.closest(".person");
   if (!el) return;
   const p = personById(el.dataset.id);
   if (!p) return;
-  const r = canvas.getBoundingClientRect();
+
+  const pt = toCanvas(e);
   const mini = e.target.closest(".mini");
   const more = e.target.closest(".moreBtn");
   drag = {
     id: p.id, el, moved: false,
-    dx: e.clientX - r.left - p.x,
-    dy: e.clientY - r.top - p.y,
+    dx: pt.x - p.x, dy: pt.y - p.y,
     wid: mini ? mini.dataset.wid : null,
     toggle: more ? more.dataset.toggle : null
   };
-  el.setPointerCapture(e.pointerId);
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
+
+  // Langes Draufhalten auf die Karte = Person bearbeiten (Handy-Ersatz fuer Doppelklick)
+  clearTimeout(longPress);
+  if (!mini && !more) {
+    longPress = setTimeout(() => {
+      if (drag && !drag.moved) { const q = personById(drag.id); drag = null; if (q) personModal(q); }
+    }, 550);
+  }
 });
 
 canvas.addEventListener("pointermove", e => {
   if (!drag) return;
   const p = personById(drag.id);
-  const r = canvas.getBoundingClientRect();
-  const nx = Math.max(0, Math.min(canvas.offsetWidth - drag.el.offsetWidth, e.clientX - r.left - drag.dx));
-  const ny = Math.max(0, Math.min(canvas.offsetHeight - drag.el.offsetHeight, e.clientY - r.top - drag.dy));
-  if (Math.abs(nx - p.x) > 3 || Math.abs(ny - p.y) > 3) drag.moved = true;
+  if (!p) return;
+  const pt = toCanvas(e);
+  const nx = Math.max(0, Math.min(BASE_W - drag.el.offsetWidth, pt.x - drag.dx));
+  const ny = Math.max(0, Math.min(BASE_H - drag.el.offsetHeight, pt.y - drag.dy));
+  if (Math.abs(nx - p.x) > 3 || Math.abs(ny - p.y) > 3) { drag.moved = true; clearTimeout(longPress); }
   p.x = nx; p.y = ny;
   drag.el.style.left = nx + "px";
   drag.el.style.top = ny + "px";
   renderLines();
 });
 
-canvas.addEventListener("pointerup", () => {
+function endDrag() {
+  clearTimeout(longPress);
   if (!drag) return;
   const d = drag;
   drag = null;
@@ -546,7 +707,11 @@ canvas.addEventListener("pointerup", () => {
 
   selPerson = (selPerson === d.id) ? null : d.id;
   render();
-});
+  if (selPerson && isPhone()) setSide(false);
+}
+
+canvas.addEventListener("pointerup", endDrag);
+canvas.addEventListener("pointercancel", () => { clearTimeout(longPress); drag = null; });
 
 canvas.addEventListener("dblclick", e => {
   if (e.target.closest(".mini") || e.target.closest(".moreBtn")) return;
@@ -626,7 +791,7 @@ function personModal(person) {
       m.querySelector("#pName").value = person.name;
       m.querySelector("#pRole").value = person.role || "";
     }
-    m.querySelector("#pName").focus();
+    if (!isPhone()) m.querySelector("#pName").focus();
   });
 }
 
@@ -711,7 +876,7 @@ function wishModal(wish) {
       m.querySelector("#wTxt").value = wish.text;
       m.querySelector("#wNote").value = wish.note || "";
     }
-    m.querySelector("#wTxt").focus();
+    if (!isPhone()) m.querySelector("#wTxt").focus();
   });
 }
 
@@ -720,34 +885,31 @@ function setLinkMode(on) {
   mode = on ? "link" : "normal";
   linkFirst = null;
   $("btnLink").classList.toggle("active", on);
-  $("btnLink").textContent = on ? "Verbinden: an (Esc)" : "Verbinden";
+  $("btnLink").textContent = on ? "Verbinden: an" : "Verbinden";
   renderPeople();
+}
+
+function setSide(hidden) {
+  document.body.classList.toggle("noside", hidden);
+  $("btnSide").textContent = isPhone() ? "Liste" : (hidden ? "Liste einblenden" : "Liste ausblenden");
+  $("btnSide").classList.toggle("active", !hidden);
+  try { localStorage.setItem(UIKEY, hidden ? "1" : "0"); } catch (e) {}
+  renderLines();
 }
 
 $("btnAddPerson").onclick = () => personModal(null);
 $("btnAddWish").onclick = () => wishModal(null);
 $("btnLink").onclick = () => setLinkMode(mode !== "link");
-
-$("btnExport").onclick = () => {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "wunschbaum.json";
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-};
-
-/* ---- Sidebar ein-/ausklappen ---- */
-function setSide(hidden) {
-  document.body.classList.toggle("noside", hidden);
-  $("btnSide").textContent = hidden ? "Liste einblenden" : "Liste ausblenden";
-  $("btnSide").classList.toggle("active", hidden);
-  try { localStorage.setItem(UIKEY, hidden ? "1" : "0"); } catch (e) {}
-  renderLines();
-}
 $("btnSide").onclick = () => setSide(!document.body.classList.contains("noside"));
+$("sideClose").onclick = () => setSide(true);
 
-/* ---- PDF (über die Druckansicht) ---- */
+/* Mehr-Menue (nur am Handy sichtbar) */
+$("btnMore").onclick = e => { e.stopPropagation(); $("more").classList.toggle("open"); };
+document.addEventListener("click", e => {
+  if (!e.target.closest("#more") && !e.target.closest("#btnMore")) $("more").classList.remove("open");
+});
+
+/* ---- PDF ---- */
 function buildPrint() {
   const a = $("printArea");
   a.innerHTML = "";
@@ -839,12 +1001,22 @@ function buildPrint() {
 }
 
 $("btnPdf").onclick = () => {
-  // In der Mac-App: echtes PDF direkt speichern. Im Browser: Druckdialog.
+  $("more").classList.remove("open");
   if (window.wunschbaum && window.wunschbaum.savePdf) { window.wunschbaum.savePdf(); return; }
   buildPrint(); setTimeout(() => window.print(), 60);
 };
 
-$("btnImport").onclick = () => $("fileIn").click();
+$("btnExport").onclick = () => {
+  $("more").classList.remove("open");
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wunschbaum.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+
+$("btnImport").onclick = () => { $("more").classList.remove("open"); $("fileIn").click(); };
 $("fileIn").onchange = e => {
   const f = e.target.files[0];
   if (!f) return;
@@ -859,7 +1031,7 @@ $("fileIn").onchange = e => {
         wishes: Array.isArray(d.wishes) ? d.wishes : []
       };
       state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
-      selPerson = null; expanded.clear(); save(); render();
+      selPerson = null; expanded.clear(); save(); render(); fitToContent();
     } catch (err) { alert("Datei konnte nicht gelesen werden."); }
   };
   r.readAsText(f);
@@ -867,6 +1039,7 @@ $("fileIn").onchange = e => {
 };
 
 $("btnReset").onclick = () => {
+  $("more").classList.remove("open");
   if (!confirm("Wirklich alles löschen? Das lässt sich nicht rückgängig machen.")) return;
   state = { people: [], links: [], wishes: [] };
   selPerson = null; linkFirst = null; expanded.clear();
@@ -888,14 +1061,17 @@ $("filterType").onclick = e => {
   renderWishes();
 };
 
+window.addEventListener("resize", () => {
+  $("btnSide").textContent = isPhone() ? "Liste" : (document.body.classList.contains("noside") ? "Liste einblenden" : "Liste ausblenden");
+});
+
 /* ================= Start ================= */
 load();
-try { setSide(localStorage.getItem(UIKEY) === "1"); } catch (e) { setSide(false); }
 if (!state.people.length && !state.wishes.length) {
-  const mama = { id: uid(), name: "Mama", role: "", x: 320, y: 60 };
-  const papa = { id: uid(), name: "Papa", role: "", x: 600, y: 60 };
-  const opa  = { id: uid(), name: "Opa",  role: "väterlicherseits", x: 880, y: 60 };
-  const ich  = { id: uid(), name: "Ich",  role: "", x: 460, y: 400 };
+  const mama = { id: uid(), name: "Mama", role: "", x: 200, y: 60 };
+  const papa = { id: uid(), name: "Papa", role: "", x: 440, y: 60 };
+  const opa  = { id: uid(), name: "Opa",  role: "väterlicherseits", x: 680, y: 60 };
+  const ich  = { id: uid(), name: "Ich",  role: "", x: 320, y: 360 };
   state.people = [mama, papa, opa, ich];
   state.links = [
     { id: uid(), a: mama.id, b: ich.id },
@@ -909,7 +1085,21 @@ if (!state.people.length && !state.wishes.length) {
   ];
   save();
 }
+
+// Seitenleiste startet ueberall eingeklappt, bis man sie selbst umschaltet
+let sideStored = null;
+try { sideStored = localStorage.getItem(UIKEY); } catch (e) {}
+setSide(sideStored === null ? true : sideStored === "1");
+
 render();
+
+// Zoom: gespeicherten Wert nehmen, sonst automatisch einpassen
+let zStored = null;
+try { zStored = localStorage.getItem(ZKEY); } catch (e) {}
+requestAnimationFrame(() => {
+  if (zStored && !isNaN(parseFloat(zStored))) applyZoom(parseFloat(zStored), false);
+  else fitToContent();
+});
 </script>
 </body>
 </html>
