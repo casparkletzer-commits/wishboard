@@ -63,7 +63,7 @@
 
   /* ---------- Zoom-Leiste ---------- */
   #zoomBar {
-    position: absolute; left: 12px; bottom: 12px;
+    position: fixed; left: 12px; bottom: 12px;
     bottom: max(12px, env(safe-area-inset-bottom)); z-index: 15;
     display: flex; align-items: center; gap: 4px;
     background: rgba(255,255,255,.94); border: 1px solid #e0e3e8; border-radius: 10px;
@@ -320,7 +320,8 @@
 
 /* ================= State ================= */
 const KEY = "wunschbaum_v1";
-const UIKEY = "wunschbaum_ui_side";
+// v2: neuer Schluessel, damit die Liste auch bei alten Besuchern einmal zugeklappt startet
+const UIKEY = "wunschbaum_ui_side_v2";
 const ZKEY = "wunschbaum_ui_zoom";
 const MAX_VISIBLE = 3;
 const BASE_W = 2400, BASE_H = 1800;
