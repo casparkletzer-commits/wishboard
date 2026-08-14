@@ -1292,7 +1292,9 @@ render();
 // Zoom: gespeicherten Wert nehmen, sonst automatisch einpassen
 let zStored = null;
 try { zStored = localStorage.getItem(ZKEY); } catch (e) {}
-requestAnimationFrame(async () => {
+// setTimeout statt requestAnimationFrame: rAF laeuft in Hintergrund-Tabs nicht,
+// dann wuerde ein im Hintergrund geoeffneter Link erst beim Hinschauen geladen.
+setTimeout(async () => {
   let ausLink = false;
   if (linkVorhanden) {
     ausLink = await importFromHash();
@@ -1301,7 +1303,7 @@ requestAnimationFrame(async () => {
   if (ausLink) return;   // importFromHash hat schon eingepasst
   if (zStored && !isNaN(parseFloat(zStored))) applyZoom(parseFloat(zStored), false);
   else fitToContent();
-});
+}, 0);
 </script>
 </body>
 </html>
