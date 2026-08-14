@@ -272,6 +272,7 @@
   <span class="spacer"></span>
   <button id="btnMore" aria-label="Mehr">•••</button>
   <div id="more">
+    <button class="ghost" id="btnShare">Link kopieren</button>
     <button class="ghost" id="btnPdf">PDF</button>
     <button class="ghost" id="btnExport">Backup</button>
     <button class="ghost" id="btnImport">Import</button>
@@ -1018,6 +1019,143 @@ $("btnExport").onclick = () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
 
+/* ---- Teilen-Link: alle Daten stecken hinter dem # im Link ----
+   Alles hinter dem # bleibt im Browser und wird nie an einen Server geschickt. */
+const WEB_BASE = "https://casparkletzer-commits.github.io/wishboard/";
+
+function b64url(u8) {
+  let s = "";
+  for (let i = 0; i < u8.length; i += 8192) s += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function unb64url(str) {
+  let s = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  const bin = atob(s);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
+async function packState() {
+  const payload = {
+    v: 1,
+    people: state.people,
+    links: state.links,
+    wishes: state.wishes,
+    expanded: [...expanded]
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(payload));
+  if (window.CompressionStream) {
+    try {
+      const st = new Blob([bytes]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+      return "z" + b64url(new Uint8Array(await new Response(st).arrayBuffer()));
+    } catch (e) {}
+  }
+  return "r" + b64url(bytes);
+}
+
+async function unpackState(code) {
+  const kind = code[0];
+  let bytes = unb64url(code.slice(1));
+  if (kind === "z") {
+    const st = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    bytes = new Uint8Array(await new Response(st).arrayBuffer());
+  } else if (kind !== "r") {
+    throw new Error("unbekanntes Format");
+  }
+  const d = JSON.parse(new TextDecoder().decode(bytes));
+  if (!d || !Array.isArray(d.people)) throw new Error("keine gültigen Daten");
+  return d;
+}
+
+function shareBase() {
+  if (location.protocol === "http:" || location.protocol === "https:") {
+    return location.origin + location.pathname;
+  }
+  return WEB_BASE;   // in der Mac-App: Link zeigt auf die Website
+}
+
+function showLink(url) {
+  openModal(m => {
+    m.innerHTML =
+      "<h3>Link kopiert</h3>" +
+      '<div class="hint" style="margin:0 0 10px">In diesem Link stecken alle Zettel, Namen, Notizen und Positionen. ' +
+      "Öffne ihn in einem neuen Tab oder am Handy – dann ist alles genau so da.</div>" +
+      '<input type="text" id="shareUrl" readonly>' +
+      '<div class="hint">Falls das automatische Kopieren nicht geklappt hat: Feld ist markiert, einfach ⌘C drücken. ' +
+      "Der Teil hinter dem # wird nie an einen Server geschickt.</div>";
+    const inp = m.querySelector("#shareUrl");
+    inp.value = url;
+    inp.focus(); inp.select();
+
+    const acts = document.createElement("div");
+    acts.className = "modalActs";
+    acts.appendChild(spacerEl());
+    const ok = document.createElement("button");
+    ok.className = "primary"; ok.textContent = "Fertig";
+    ok.onclick = () => closeModal();
+    acts.appendChild(ok);
+    m.appendChild(acts);
+  });
+}
+
+async function copyText(t) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(t); return true; }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = t;
+    ta.style.cssText = "position:fixed;top:-1000px;left:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+
+$("btnShare").onclick = async () => {
+  $("more").classList.remove("open");
+  try {
+    const url = shareBase() + "#d=" + await packState();
+    await copyText(url);
+    showLink(url);
+  } catch (e) {
+    alert("Link konnte nicht erstellt werden: " + (e && e.message ? e.message : e));
+  }
+};
+
+/* Beim Start: Daten aus dem Link uebernehmen */
+async function importFromHash() {
+  const h = location.hash || "";
+  if (h.indexOf("#d=") !== 0) return false;
+  const code = h.slice(3);
+  // Link sofort aus der Adressleiste raeumen, damit ein Neuladen nicht nochmal fragt
+  try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+  let d;
+  try { d = await unpackState(code); }
+  catch (e) { alert("Der Link konnte nicht gelesen werden."); return false; }
+
+  const zettel = d.people.length, wu = d.wishes ? d.wishes.length : 0;
+  const leer = !state.people.length && !state.wishes.length;
+  if (!leer && !confirm("Kopierte Daten einfügen?\n\n" + zettel + " Personen und " + wu +
+      " Wünsche werden übernommen. Alles, was gerade in diesem Tab steht, wird ersetzt.")) return false;
+
+  state = {
+    people: d.people,
+    links: Array.isArray(d.links) ? d.links : [],
+    wishes: Array.isArray(d.wishes) ? d.wishes : []
+  };
+  state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+  expanded.clear();
+  if (Array.isArray(d.expanded)) d.expanded.forEach(id => expanded.add(id));
+  selPerson = null;
+  saveExpanded(); save(); render(); fitToContent();
+  return true;
+}
+
 $("btnImport").onclick = () => { $("more").classList.remove("open"); $("fileIn").click(); };
 $("fileIn").onchange = e => {
   const f = e.target.files[0];
@@ -1134,7 +1272,8 @@ function seedBase() {
 
 /* ================= Start ================= */
 load();
-if (!state.people.length && !state.wishes.length) {
+const linkVorhanden = (location.hash || "").indexOf("#d=") === 0;
+if (!linkVorhanden && !state.people.length && !state.wishes.length) {
   seedBase();
 } else {
   try {
@@ -1153,7 +1292,13 @@ render();
 // Zoom: gespeicherten Wert nehmen, sonst automatisch einpassen
 let zStored = null;
 try { zStored = localStorage.getItem(ZKEY); } catch (e) {}
-requestAnimationFrame(() => {
+requestAnimationFrame(async () => {
+  let ausLink = false;
+  if (linkVorhanden) {
+    ausLink = await importFromHash();
+    if (!ausLink && !state.people.length && !state.wishes.length) { seedBase(); render(); }
+  }
+  if (ausLink) return;   // importFromHash hat schon eingepasst
   if (zStored && !isNaN(parseFloat(zStored))) applyZoom(parseFloat(zStored), false);
   else fitToContent();
 });
