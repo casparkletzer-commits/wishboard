@@ -1212,12 +1212,12 @@ function seedBase() {
     P("mama",  "Mama",                "",                 506,  57),
     P("papa",  "Papa",                "",                 881, 485),
     P("opa",   "Opa",                 "Momo",             815,  10),
+    P("geld",  "Geld von Geb Party",  "",                 110, 226),
     P("nonno", "Nonno",               "Müttericherseits", 239,  37),
     P("co",    "Co",                  "Vaterlicherseits", 1083, 150),
     P("feli",  "Feli Omi",            "",                 361, 508),
-    P("eng",   "Engeneering",         "",                 1120, 289),
-    P("geld",  "Geld von Geb Party",  "",                 110, 226),
-    P("weiss", "Weiß ich noch nicht", "",                 661, 599)
+    P("weiss", "Weiß ich noch nicht", "",                 661, 599),
+    P("eng",   "Engeneering",         "",                 1120, 289)
   ];
 
   const links = [
@@ -1228,33 +1228,34 @@ function seedBase() {
 
   // Reihenfolge = Anzeigereihenfolge von oben nach unten
   const raw = [
-    ["Pull up Bar kaufen 30$", "https://amzn.eu/d/09g7iSrt", "bday", true, ["nonno"]],
-
     ["Polos/Borkenstocks/Golden Goose kaufen (In Pandorf)", "400 Euro", "bday", true, ["mama"]],
     ["Ausflug nach Pandorf", "Sie hat am 1.Aug in Kärnten beim höhenwirt gesagt dass ich ein 400$ Budget bekomme", "bday", true, ["mama"]],
 
-    ["Longines Conquest", "https://www.longines.com/de-at/p/watch-conquest-l3-860-4-52-6", "both", true, ["opa", "papa"]],
-    ["E-Bike", "2.5k", "both", false, ["opa", "papa"]],
-
-    ["Money", "", "bday", true, ["co"]],
-
-    ["Kleber plus Microscrewdriver set", "40 Euro", "bday", true, ["eng"]],
-    ["Unterlage", "11 Euro", "bday", true, ["eng"]],
-    ["Starke Propeller bei Amazon", "50 Euro", "bday", false, ["eng"]],
-    ["4. Wunsch – war auf dem Foto verdeckt", "bitte ersetzen oder löschen", "bday", true, ["eng"]],
+    ["Longines Conquest", "https://www.longines.com/de-at/p/watch-conquest-l3-860-4-52-6", "both", true, ["papa", "opa"]],
+    ["E-Bike", "2.5k", "both", false, ["papa", "opa"]],
 
     ["Eromify kaufen für images (36 Euro/Jahr)", "https://www.eromify.com/studio/pricing", "bday", true, ["geld"]],
-    ["KW5 Decoder kaufen (LiShi) (30 Euro)", "https://amzn.eu/d/0eJW9feC", "bday", true, ["geld"]],
+    ["KW5 Decoder kaufen (LiShi)(30 Euro)", "https://amzn.eu/d/0eJW9feC", "bday", true, ["geld"]],
     ["Waveboard kaufen", "https://amzn.eu/d/05K0Kl9o", "bday", true, ["geld"]],
     ["Oopbuy Haul machen", "120 Euro", "bday", true, ["geld"]],
     ["Fake Rolex von Safari", "100 Euro", "bday", true, ["geld"]],
 
+    ["Pull up Bar kaufen 30$", "https://amzn.eu/d/09g7iSrt", "bday", true, ["nonno"]],
+
+    ["Money", "", "bday", true, ["co"]],
+
     ["UnderBrush Set 4Stk. (40 Euro)", "https://nathanandsons.com/products/remineralizing-gum?variant=46951057129693", "bday", true, ["feli"]],
     ["Kreain Gum (30 Euro)", "https://kreainco.com/products/all-natural-remineralizing-gum", "bday", true, ["feli"]],
 
+    ["Alluminium Zahnbürste", "https://berninox.com/en-eu/products/starter-pack-berninox-316-noir-profond", "bday", true, ["weiss"]],
+    ["Evenrealities Ai Brille", "https://www.evenrealities.com/de-AT/cart", "bday", false, ["weiss"]],
     ["Schwimmbrille (2x:30 Euro)", "https://shopsplurge.us/products/full-view-swim-goggles", "bday", true, ["weiss"]],
-    ["Raketen Accessoires", "100-250 Euro", "bday", true, ["weiss"]],
-    ["Whoop", "Wiederkehrendes Geschenk", "bday", true, ["weiss"]]
+    ["Whoop", "Wiederkehrendes Geschenk", "bday", true, ["weiss"]],
+
+    ["Kleber plus Microscrewdriver set", "40 Euro", "bday", true, ["eng"]],
+    ["Unterlage", "11 Euro", "bday", true, ["eng"]],
+    ["Starke Propeller bei Amazon", "50 Euro", "bday", false, ["eng"]],
+    ["Motoren,Propeller,Batterien,Knöpfe,kabel", "50 Euro ( Bei Amazon)", "bday", true, ["eng"]]
   ];
 
   const T = 1785000000000;
