@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Wunschbaum">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#08090b">
 <title>Wunschbaum</title>
 <style>
   * { box-sizing: border-box; }
@@ -259,6 +259,191 @@
     #printArea .pTags { font-size: 8.5pt; color: #555; margin-top: .8mm; letter-spacing: .2pt; }
     #printArea .pFoot { margin-top: 8mm; font-size: 8.5pt; color: #888; border-top: .5pt solid #ccc; padding-top: 2mm; }
   }
+
+  /* ==================================================================
+     DUNKLES DESIGN – nur am Bildschirm. Der Ausdruck bleibt schwarz
+     auf weiß, damit das PDF nicht die ganze Patrone leersaugt.
+     ================================================================== */
+  @media screen {
+    :root {
+      color-scheme: dark;
+      --bg: #08090b;
+      --txt: #e9ebee;
+      --muted: #8b919b;
+      --line: rgba(255,255,255,.10);
+      --glass: rgba(255,255,255,.055);
+      --glass-hi: rgba(255,255,255,.09);
+      --real: #34d399;
+      --unreal: #a78bfa;
+    }
+
+    html, body { background: var(--bg); color: var(--txt); }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.24); background-clip: content-box; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    * { scrollbar-color: rgba(255,255,255,.16) transparent; scrollbar-width: thin; }
+
+    /* ---------- Kopfzeile ---------- */
+    header {
+      background: rgba(12,13,16,.72);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      backdrop-filter: blur(20px) saturate(160%);
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { color: var(--txt); font-weight: 590; }
+
+    button {
+      background: var(--glass);
+      border: 1px solid var(--line);
+      color: var(--txt);
+      border-radius: 9px;
+      transition: background .15s ease, border-color .15s ease;
+    }
+    button:hover { background: var(--glass-hi); border-color: rgba(255,255,255,.16); }
+    button.primary { background: #f2f3f5; color: #0b0c0e; border-color: transparent; font-weight: 560; }
+    button.primary:hover { background: #fff; }
+    button.active { background: #f2f3f5; color: #0b0c0e; border-color: transparent; }
+    button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
+    button.ghost:hover { background: var(--glass); color: var(--txt); }
+    button.danger, .danger { color: #f87171; border-color: rgba(248,113,113,.28); }
+    button.danger:hover, .danger:hover { background: rgba(248,113,113,.12); }
+
+    /* ---------- Fläche: schwarz mit Punktraster ---------- */
+    #canvasWrap { background: var(--bg); }
+    #canvas {
+      background-color: var(--bg);
+      background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,.085) 1px, transparent 0);
+      background-size: 22px 22px;
+    }
+    /* Der Schein unter der Maus: hellere Punkte + weicher Lichtkegel */
+    #glow {
+      position: absolute; inset: 0; pointer-events: none; z-index: 0;
+      opacity: 0; transition: opacity .35s ease;
+      --mx: -1000px; --my: -1000px; --r: 210px;
+      background-image:
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,.55) 1px, transparent 0),
+        radial-gradient(circle var(--r) at var(--mx) var(--my), rgba(255,255,255,.07), transparent 70%);
+      background-size: 22px 22px, 100% 100%;
+      -webkit-mask-image: radial-gradient(circle var(--r) at var(--mx) var(--my), #000 0%, rgba(0,0,0,.45) 40%, transparent 72%);
+      mask-image: radial-gradient(circle var(--r) at var(--mx) var(--my), #000 0%, rgba(0,0,0,.45) 40%, transparent 72%);
+    }
+    #lines line { stroke: rgba(255,255,255,.22); stroke-width: 1.5; }
+
+    /* ---------- Karten: dunkles Glas ---------- */
+    .postit::before, .postit::after { display: none; }
+    .postit { border-radius: 14px; }
+
+    .person {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(16px) saturate(150%);
+      backdrop-filter: blur(16px) saturate(150%);
+      border: 1px solid var(--line);
+      padding: 13px 13px 12px;
+      color: var(--txt);
+      box-shadow: 0 14px 34px -18px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.05);
+      transition: border-color .15s ease, background .15s ease;
+    }
+    .person:hover { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.07); }
+    .person.sel { outline: none; border-color: rgba(255,255,255,.55); box-shadow: 0 14px 34px -18px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.35); }
+    .person.link1 { outline: none; border-color: var(--unreal); box-shadow: 0 0 0 1px var(--unreal), 0 0 22px -6px var(--unreal); }
+    .person .nm { color: var(--txt); font-weight: 600; letter-spacing: -.2px; }
+    .person .rl { color: var(--muted); }
+    .person .none { color: rgba(255,255,255,.28); }
+
+    .mini {
+      background: rgba(255,255,255,.045);
+      background-image: none;
+      border: 1px solid rgba(255,255,255,.07);
+      border-left: 2px solid var(--real);
+      border-radius: 9px;
+      box-shadow: none;
+      transition: background .15s ease;
+    }
+    .mini:hover { background: rgba(255,255,255,.085); }
+    .mini.u { background-color: rgba(167,139,250,.07); border: 1px solid rgba(167,139,250,.16); border-left: 2px solid var(--unreal); }
+    .mini .mt { color: var(--txt); }
+    .mini .mn { color: var(--muted); }
+    .mini .mo { color: rgba(255,255,255,.32); opacity: 1; }
+    .moreBtn { background: rgba(255,255,255,.05); border: 1px solid var(--line); color: var(--muted); }
+    .moreBtn:hover { background: rgba(255,255,255,.1); color: var(--txt); }
+
+    /* ---------- Zoom-Leiste ---------- */
+    #zoomBar {
+      background: rgba(18,19,23,.78);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      backdrop-filter: blur(18px) saturate(160%);
+      border: 1px solid var(--line);
+      box-shadow: 0 10px 30px -12px rgba(0,0,0,.9);
+    }
+    #zVal { color: var(--muted); }
+
+    /* ---------- Seitenleiste ---------- */
+    aside { background: rgba(12,13,16,.86); border-left: 1px solid var(--line); }
+    .sideHead { border-bottom: 1px solid var(--line); }
+    .sideHead h2 { color: var(--txt); font-weight: 590; }
+    #wishList { background: transparent; }
+    .chipBtn { background: transparent; border: 1px solid var(--line); color: var(--muted); }
+    .chipBtn:hover { background: var(--glass); color: var(--txt); }
+    .chipBtn.on { background: #f2f3f5; color: #0b0c0e; border-color: transparent; }
+
+    .wish {
+      background: var(--glass);
+      -webkit-backdrop-filter: blur(14px) saturate(150%);
+      backdrop-filter: blur(14px) saturate(150%);
+      border: 1px solid var(--line);
+      border-left: 2px solid var(--real);
+      border-radius: 12px;
+      padding: 12px 12px 11px;
+      box-shadow: none;
+    }
+    .wish.unreal { background: rgba(167,139,250,.06); border-color: rgba(167,139,250,.16); border-left-color: var(--unreal); }
+    .wish .txt { color: var(--txt); font-weight: 500; }
+    .wish .note { color: var(--muted); }
+    .tag { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.07); color: var(--muted); }
+    .tag.bday { color: #fbbf24; }
+    .tag.xmas { color: #4ade80; }
+    .tag.both { color: #7dd3fc; }
+    .wish .acts button { background: rgba(255,255,255,.05); border-color: var(--line); color: var(--txt); }
+    .wish .acts button:hover { background: rgba(255,255,255,.1); }
+    .wish .acts button.danger { color: #f87171; border-color: rgba(248,113,113,.24); }
+    .empty { color: rgba(255,255,255,.3); }
+
+    /* ---------- Fenster ---------- */
+    .backdrop { background: rgba(0,0,0,.6); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+    .modal {
+      background: rgba(22,23,27,.92);
+      -webkit-backdrop-filter: blur(28px) saturate(170%);
+      backdrop-filter: blur(28px) saturate(170%);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      color: var(--txt);
+      box-shadow: 0 30px 70px -20px rgba(0,0,0,.95);
+    }
+    .modal h3 { color: var(--txt); font-weight: 590; }
+    label { color: var(--muted); }
+    input[type=text], textarea, select {
+      background: rgba(255,255,255,.05);
+      border: 1px solid var(--line);
+      color: var(--txt);
+      border-radius: 9px;
+    }
+    input[type=text]:focus, textarea:focus {
+      outline: none;
+      border-color: rgba(255,255,255,.3);
+      background: rgba(255,255,255,.08);
+    }
+    input[type=text]::placeholder, textarea::placeholder { color: rgba(255,255,255,.26); }
+    .checks { background: rgba(255,255,255,.03); border: 1px solid var(--line); }
+    .checks label { color: var(--txt); border-radius: 7px; }
+    .checks label:hover { background: rgba(255,255,255,.05); }
+    .checks input { accent-color: #f2f3f5; }
+    .hint { color: rgba(255,255,255,.32); }
+
+    #more { background: rgba(22,23,27,.95); border-color: var(--line); box-shadow: 0 20px 50px -18px rgba(0,0,0,.95); }
+    #more button { color: var(--txt); }
+  }
 </style>
 </head>
 <body>
@@ -285,7 +470,7 @@
 <main>
   <div id="canvasWrap">
     <div id="canvasScale">
-      <div id="canvas"><svg id="lines"></svg></div>
+      <div id="canvas"><div id="glow"></div><svg id="lines"></svg></div>
     </div>
     <div id="zoomBar">
       <button id="zOut" aria-label="Kleiner">−</button>
@@ -456,7 +641,6 @@ function renderPeople() {
     el.className = "person postit" + (selPerson === p.id ? " sel" : "") + (linkFirst === p.id ? " link1" : "");
     el.style.left = p.x + "px";
     el.style.top = p.y + "px";
-    el.style.transform = "rotate(" + rotOf(p.id) + "deg)";
     el.dataset.id = p.id;
 
     const nm = document.createElement("div");
@@ -715,6 +899,23 @@ function endDrag() {
 
 canvas.addEventListener("pointerup", endDrag);
 canvas.addEventListener("pointercancel", () => { clearTimeout(longPress); drag = null; });
+
+/* ---- Lichtschein, der der Maus folgt ---- */
+const glow = $("glow");
+let glowQueued = false, glowPt = null;
+function paintGlow() {
+  glowQueued = false;
+  if (!glowPt) return;
+  glow.style.setProperty("--mx", glowPt.x.toFixed(0) + "px");
+  glow.style.setProperty("--my", glowPt.y.toFixed(0) + "px");
+  glow.style.setProperty("--r", Math.round(210 / Math.max(zoom, 0.2)) + "px");
+  glow.style.opacity = "1";
+}
+wrap.addEventListener("pointermove", e => {
+  glowPt = toCanvas(e);
+  if (!glowQueued) { glowQueued = true; requestAnimationFrame(paintGlow); }
+});
+wrap.addEventListener("pointerleave", () => { glow.style.opacity = "0"; });
 
 canvas.addEventListener("dblclick", e => {
   if (e.target.closest(".mini") || e.target.closest(".moreBtn")) return;
@@ -1208,16 +1409,16 @@ function saveExpanded() {
 function seedBase() {
   const P = (id, name, role, x, y) => ({ id, name, role, x, y });
   const people = [
-    P("ich",   "Ich",                 "",                 546, 384),
-    P("mama",  "Mama",                "",                 506,  57),
-    P("papa",  "Papa",                "",                 881, 485),
-    P("opa",   "Opa",                 "Momo",             815,  10),
-    P("geld",  "Geld von Geb Party",  "",                 110, 226),
-    P("nonno", "Nonno",               "Müttericherseits", 239,  37),
-    P("co",    "Co",                  "Vaterlicherseits", 1083, 150),
-    P("feli",  "Feli Omi",            "",                 361, 508),
-    P("weiss", "Weiß ich noch nicht", "",                 661, 599),
-    P("eng",   "Engeneering",         "",                 1120, 289)
+    P("ich",   "Ich",                 "",                 1181, 372),
+    P("mama",  "Mama",                "",                 1141,  46),
+    P("papa",  "Papa",                "",                 1511, 472),
+    P("opa",   "Opa",                 "Momo",             1436,   0),
+    P("geld",  "Geld von Geb Party",  "",                  748, 214),
+    P("nonno", "Nonno",               "Müttericherseits",  877,  27),
+    P("co",    "Co",                  "Vaterlicherseits", 1718, 136),
+    P("feli",  "Feli Omi",            "",                 1000, 493),
+    P("weiss", "Weiß ich noch nicht", "",                 1290, 548),
+    P("eng",   "Engeneering",         "",                 1751, 277)
   ];
 
   const links = [
