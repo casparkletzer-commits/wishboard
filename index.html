@@ -458,6 +458,7 @@
   <button id="btnMore" aria-label="Mehr">•••</button>
   <div id="more">
     <button class="ghost" id="btnShare">Link kopieren</button>
+    <button class="ghost" id="btnPaste">Link einfügen</button>
     <button class="ghost" id="btnPdf">PDF</button>
     <button class="ghost" id="btnExport">Backup</button>
     <button class="ghost" id="btnImport">Import</button>
@@ -1328,6 +1329,84 @@ $("btnShare").onclick = async () => {
   }
 };
 
+/* Daten aus einem Link/Code uebernehmen */
+function applyPayload(d) {
+  state = {
+    people: d.people,
+    links: Array.isArray(d.links) ? d.links : [],
+    wishes: Array.isArray(d.wishes) ? d.wishes : []
+  };
+  state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+  expanded.clear();
+  if (Array.isArray(d.expanded)) d.expanded.forEach(id => expanded.add(id));
+  selPerson = null;
+  saveExpanded(); save(); render(); fitToContent();
+}
+
+function fragenObErsetzen(d) {
+  const leer = !state.people.length && !state.wishes.length;
+  if (leer) return true;
+  return confirm("Kopierte Daten einfügen?\n\n" + d.people.length + " Personen und " +
+    (d.wishes ? d.wishes.length : 0) +
+    " Wünsche werden übernommen. Alles, was gerade in diesem Tab steht, wird ersetzt.");
+}
+
+/* ---- Link einfügen (funktioniert auch in der Mac-App, wo es keine Adressleiste gibt) ---- */
+function codeAus(text) {
+  const v = (text || "").trim();
+  const i = v.indexOf("#d=");
+  return (i >= 0 ? v.slice(i + 3) : v).trim();
+}
+
+$("btnPaste").onclick = async () => {
+  $("more").classList.remove("open");
+  let vorbelegt = "";
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const t = await navigator.clipboard.readText();
+      if (t && codeAus(t)) vorbelegt = t.trim();
+    }
+  } catch (e) {}
+
+  openModal(m => {
+    m.innerHTML =
+      "<h3>Link einfügen</h3>" +
+      '<div class="hint" style="margin:0 0 10px">Füge hier den Link ein, den du vorher mit „Link kopieren“ erzeugt hast (⌘V). ' +
+      "Damit kommen alle Zettel, Notizen, Verbindungen und Positionen zurück.</div>" +
+      '<label>Link oder Code</label><input type="text" id="pasteUrl" placeholder="https://…/#d=…">' +
+      '<div class="hint" id="pasteInfo">Alles, was gerade auf dem Board steht, wird dadurch ersetzt.</div>';
+
+    const inp = m.querySelector("#pasteUrl");
+    inp.value = vorbelegt;
+    setTimeout(() => { inp.focus(); inp.select(); }, 30);
+
+    const acts = document.createElement("div");
+    acts.className = "modalActs";
+    acts.appendChild(spacerEl());
+    const cancel = document.createElement("button");
+    cancel.textContent = "Abbrechen"; cancel.onclick = () => closeModal();
+    const ok = document.createElement("button");
+    ok.className = "primary"; ok.textContent = "Einfügen";
+    ok.onclick = async () => {
+      const code = codeAus(inp.value);
+      if (!code) { inp.focus(); return; }
+      let d;
+      try { d = await unpackState(code); }
+      catch (e) {
+        m.querySelector("#pasteInfo").textContent = "Das ist kein gültiger Wunschbaum-Link.";
+        m.querySelector("#pasteInfo").style.color = "#f87171";
+        return;
+      }
+      if (!fragenObErsetzen(d)) return;
+      applyPayload(d);
+      closeModal();
+    };
+    inp.addEventListener("keydown", e => { if (e.key === "Enter") ok.click(); });
+    acts.append(cancel, ok);
+    m.appendChild(acts);
+  });
+};
+
 /* Beim Start: Daten aus dem Link uebernehmen */
 async function importFromHash() {
   const h = location.hash || "";
@@ -1339,21 +1418,8 @@ async function importFromHash() {
   try { d = await unpackState(code); }
   catch (e) { alert("Der Link konnte nicht gelesen werden."); return false; }
 
-  const zettel = d.people.length, wu = d.wishes ? d.wishes.length : 0;
-  const leer = !state.people.length && !state.wishes.length;
-  if (!leer && !confirm("Kopierte Daten einfügen?\n\n" + zettel + " Personen und " + wu +
-      " Wünsche werden übernommen. Alles, was gerade in diesem Tab steht, wird ersetzt.")) return false;
-
-  state = {
-    people: d.people,
-    links: Array.isArray(d.links) ? d.links : [],
-    wishes: Array.isArray(d.wishes) ? d.wishes : []
-  };
-  state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
-  expanded.clear();
-  if (Array.isArray(d.expanded)) d.expanded.forEach(id => expanded.add(id));
-  selPerson = null;
-  saveExpanded(); save(); render(); fitToContent();
+  if (!fragenObErsetzen(d)) return false;
+  applyPayload(d);
   return true;
 }
 
