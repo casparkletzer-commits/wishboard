@@ -444,6 +444,60 @@
     #more { background: rgba(22,23,27,.95); border-color: var(--line); box-shadow: 0 20px 50px -18px rgba(0,0,0,.95); }
     #more button { color: var(--txt); }
   }
+
+  /* ========== Countdown, Preise, Links, Bilder ========== */
+  @media screen {
+    #countdown {
+      font-size: 11.5px; color: var(--muted); margin-left: 6px;
+      white-space: nowrap; letter-spacing: .1px;
+    }
+
+    /* Preis */
+    .mini .pr, .wish .pr { font-weight: 650; color: #d7dbe0; }
+    .mini .pr { font-size: 11.5px; margin-top: 3px; }
+    .wish .pr { font-size: 12.5px; margin-top: 4px; }
+    #sumBox {
+      margin-top: 9px; font-size: 12px; color: var(--muted);
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline;
+    }
+    #sumBox b { color: var(--txt); font-weight: 650; }
+    #sumBox .sep { opacity: .35; }
+    .person .psum { font-size: 11px; color: var(--muted); margin-top: 3px; }
+
+    /* anklickbare Links */
+    a.wlink {
+      color: #7dd3fc; text-decoration: none;
+      border-bottom: 1px solid rgba(125,211,252,.35);
+      word-break: break-all; cursor: pointer;
+    }
+    a.wlink:hover { border-bottom-color: #7dd3fc; }
+
+    /* Bilder */
+    .thumb {
+      display: block; width: 100%; height: 84px; object-fit: cover;
+      border-radius: 7px; margin-top: 7px; cursor: zoom-in;
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .wish .thumb { height: 120px; }
+    .imgRow { display: flex; gap: 10px; align-items: center; margin-top: 6px; }
+    .imgPrev {
+      width: 62px; height: 62px; object-fit: cover; border-radius: 9px;
+      border: 1px solid var(--line); flex: 0 0 auto;
+    }
+    .imgRow .imgTxt { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+    .imgRow button { font-size: 12px; padding: 6px 10px; }
+    #lightbox {
+      position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.88);
+      display: flex; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    }
+    #lightbox img { max-width: 90vw; max-height: 86vh; border-radius: 14px; box-shadow: 0 30px 80px rgba(0,0,0,.9); }
+  }
+
+  @media print {
+    #printArea .pPrice { font-size: 10pt; color: #111; font-weight: 600; margin-top: .6mm; }
+    #printArea .pImg { max-width: 34mm; max-height: 24mm; margin-top: 1.2mm; border: .5pt solid #bbb; border-radius: 1mm; }
+  }
 </style>
 </head>
 <body>
@@ -454,10 +508,12 @@
   <button id="btnAddWish">+ Wunsch</button>
   <button id="btnLink">Verbinden</button>
   <button id="btnSide">Liste</button>
+  <span id="countdown"></span>
   <span class="spacer"></span>
   <button id="btnMore" aria-label="Mehr">•••</button>
   <div id="more">
     <button class="ghost" id="btnShare">Link kopieren</button>
+    <button class="ghost" id="btnShareBig">Großer Link mit Bildern</button>
     <button class="ghost" id="btnPaste">Link einfügen</button>
     <button class="ghost" id="btnPdf">PDF</button>
     <button class="ghost" id="btnExport">Backup</button>
@@ -496,6 +552,12 @@
         <button class="chipBtn" data-type="unreal">Unrealistisch</button>
         <button class="chipBtn ghost" id="btnClearPerson" style="display:none">Personen-Filter aus</button>
       </div>
+      <div class="row" id="filterDone">
+        <button class="chipBtn on" data-done="all">Alle</button>
+        <button class="chipBtn" data-done="open">Offen</button>
+        <button class="chipBtn" data-done="done">Erledigt</button>
+      </div>
+      <div id="sumBox"></div>
     </div>
     <div id="wishList"></div>
   </aside>
@@ -517,7 +579,7 @@ let state = { people: [], links: [], wishes: [] };
 let mode = "normal";
 let linkFirst = null;
 let selPerson = null;
-let fOcc = "all", fType = "all";
+let fOcc = "all", fType = "all", fDone = "all";
 let zoom = 1;
 const expanded = new Set();
 
@@ -542,6 +604,7 @@ function load() {
         wishes: Array.isArray(d.wishes) ? d.wishes : []
       };
       state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+      if (migratePrices()) save();
     }
   } catch (e) { console.warn("Laden fehlgeschlagen", e); }
 }
@@ -564,6 +627,141 @@ function save() {
 const personById = id => state.people.find(p => p.id === id);
 const wishById   = id => state.wishes.find(w => w.id === id);
 const OCC = { bday: ["Geburtstag", "bday"], xmas: ["Weihnachten", "xmas"], both: ["Geb. + Weihn.", "both"] };
+
+/* ================= Preise ================= */
+function fmtPreis(n) {
+  if (n === null || n === undefined || isNaN(n)) return "";
+  return Number(n).toLocaleString("de-AT", { maximumFractionDigits: 2 }) + " €";
+}
+function preisAus(t) {
+  if (!t) return null;
+  const s = String(t);
+  let m = s.match(/(\d+(?:[.,]\d+)?)\s*k\b/i);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 1000);
+  m = s.match(/(\d+(?:[.,]\d+)?)\s*(?:€|eur\b|euro\b|\$|usd\b)/i);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 100) / 100;
+  m = s.match(/(?:€|\$)\s*(\d+(?:[.,]\d+)?)/);
+  if (m) return Math.round(parseFloat(m[1].replace(",", ".")) * 100) / 100;
+  return null;
+}
+function preisEingabe(s) {
+  s = (s || "").trim();
+  if (!s) return null;
+  if (/^[\d.,\s]+$/.test(s)) {
+    const n = parseFloat(s.replace(/\s/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", "."));
+    return isNaN(n) ? null : Math.round(n * 100) / 100;
+  }
+  return preisAus(s);
+}
+function notizOhnePreis(t) {
+  let s = String(t || "")
+    .replace(/(\d+(?:[.,]\d+)?)\s*k\b/i, "")
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:€|eur\b|euro\b|\$|usd\b)/i, "")
+    .replace(/(?:€|\$)\s*(\d+(?:[.,]\d+)?)/, "");
+  s = s.replace(/^[\s\-–—:,;.]+|[\s\-–—:,;.]+$/g, "");
+  s = s.replace(/^\(\s*/, "").replace(/\s*\)$/, "");
+  return s.replace(/\s{2,}/g, " ").trim();
+}
+/* Holt Preise aus alten Notizen. Lange Notizen bleiben unangetastet,
+   der Titel wird nur gelesen, nie verändert. */
+function migratePrices() {
+  let geaendert = false;
+  state.wishes.forEach(w => {
+    if (w.price !== undefined) return;
+    geaendert = true;
+    const note = String(w.note || "");
+    let p = null;
+    if (note.length <= 25) {
+      p = preisAus(note);
+      if (p !== null) w.note = notizOhnePreis(note);
+    }
+    if (p === null) p = preisAus(w.text);
+    w.price = p;
+  });
+  return geaendert;
+}
+
+/* ================= Links im Text ================= */
+function textMitLinks(t) {
+  const frag = document.createDocumentFragment();
+  const re = /(https?:\/\/[^\s<>"')]+)/g;
+  let last = 0, m;
+  while ((m = re.exec(t)) !== null) {
+    if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+    const a = document.createElement("a");
+    a.className = "wlink";
+    a.href = m[0];
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = m[0].length > 48 ? m[0].slice(0, 46) + "…" : m[0];
+    a.addEventListener("pointerdown", e => e.stopPropagation());
+    a.addEventListener("click", e => e.stopPropagation());
+    frag.appendChild(a);
+    last = m.index + m[0].length;
+  }
+  if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+  return frag;
+}
+
+/* ================= Bilder ================= */
+const BILD_MAX = 480, BILD_QUAL = 0.72;
+function bildVerkleinern(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(new Error("Datei nicht lesbar"));
+    r.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error("Das ist kein Bild, das ich lesen kann"));
+      img.onload = () => {
+        let bw = img.width, bh = img.height;
+        const f = Math.min(1, BILD_MAX / Math.max(bw, bh));
+        bw = Math.max(1, Math.round(bw * f));
+        bh = Math.max(1, Math.round(bh * f));
+        const c = document.createElement("canvas");
+        c.width = bw; c.height = bh;
+        c.getContext("2d").drawImage(img, 0, 0, bw, bh);
+        res(c.toDataURL("image/jpeg", BILD_QUAL));
+      };
+      img.src = r.result;
+    };
+    r.readAsDataURL(file);
+  });
+}
+function zeigeBild(src) {
+  const bx = document.createElement("div");
+  bx.id = "lightbox";
+  const im = document.createElement("img");
+  im.src = src;
+  bx.appendChild(im);
+  const zu = () => { bx.remove(); document.removeEventListener("keydown", esc); };
+  const esc = e => { if (e.key === "Escape") zu(); };
+  bx.addEventListener("click", zu);
+  document.addEventListener("keydown", esc);
+  document.body.appendChild(bx);
+}
+function thumbNode(w) {
+  if (!w.img) return null;
+  const im = document.createElement("img");
+  im.className = "thumb";
+  im.src = w.img;
+  im.alt = "";
+  im.addEventListener("pointerdown", e => e.stopPropagation());
+  im.addEventListener("click", e => { e.stopPropagation(); zeigeBild(w.img); });
+  return im;
+}
+
+/* ================= Countdown ================= */
+function tageBis(monat, tag) {
+  const j = new Date();
+  const heute = new Date(j.getFullYear(), j.getMonth(), j.getDate());
+  let ziel = new Date(heute.getFullYear(), monat - 1, tag);
+  if (ziel < heute) ziel = new Date(heute.getFullYear() + 1, monat - 1, tag);
+  return Math.round((ziel - heute) / 86400000);
+}
+function renderCountdown() {
+  const t = n => n === 0 ? "ist heute" : (n === 1 ? "ist morgen" : "in " + n + " Tagen");
+  $("countdown").textContent = "Geburtstag " + t(tageBis(12, 17)) + "  ·  Weihnachten " + t(tageBis(12, 24));
+}
 
 function rotOf(id) {
   let h = 0;
@@ -632,7 +830,7 @@ $("zOut").onclick = () => applyZoom(zoom / 1.25, true);
 $("zFit").onclick = () => fitToContent();
 
 /* ================= Render: Personen ================= */
-function render() { renderPeople(); renderLines(); renderWishes(); }
+function render() { renderPeople(); renderLines(); renderWishes(); renderCountdown(); }
 
 function renderPeople() {
   [...canvas.querySelectorAll(".person")].forEach(n => n.remove());
@@ -658,6 +856,14 @@ function renderPeople() {
       .filter(w => w.people.includes(p.id))
       .sort((a, b) => (a.done - b.done) || (b.created - a.created));
 
+    const psum = my.reduce((a, w) => a + (w.price || 0), 0);
+    if (psum > 0) {
+      const ps = document.createElement("div");
+      ps.className = "psum";
+      ps.textContent = my.length + " Wünsche · " + fmtPreis(psum);
+      el.appendChild(ps);
+    }
+
     if (!my.length) {
       const n = document.createElement("div");
       n.className = "none"; n.textContent = "noch keine Wünsche";
@@ -680,14 +886,24 @@ function renderPeople() {
 
         if (w.note) {
           const n = document.createElement("div");
-          n.className = "mn"; n.textContent = w.note;
+          n.className = "mn";
+          n.appendChild(textMitLinks(w.note));
           mw.appendChild(n);
+        }
+
+        if (w.price != null) {
+          const pr = document.createElement("div");
+          pr.className = "pr"; pr.textContent = fmtPreis(w.price);
+          mw.appendChild(pr);
         }
 
         const o = document.createElement("div");
         o.className = "mo";
         o.textContent = (OCC[w.occ] || OCC.bday)[0];
         mw.appendChild(o);
+
+        const th = thumbNode(w);
+        if (th) mw.appendChild(th);
 
         box.appendChild(mw);
       });
@@ -750,7 +966,36 @@ function renderWishes() {
   if (p) ws = ws.filter(w => w.people.includes(p.id));
   if (fOcc !== "all") ws = ws.filter(w => w.occ === fOcc || w.occ === "both");
   if (fType !== "all") ws = ws.filter(w => (fType === "real") === !!w.realistic);
+  if (fDone !== "all") ws = ws.filter(w => (fDone === "done") === !!w.done);
   ws.sort((a, b) => (a.done - b.done) || (b.created - a.created));
+
+  // Summen für die gerade sichtbare Auswahl
+  const sb = $("sumBox");
+  sb.innerHTML = "";
+  if (ws.length) {
+    const ges = ws.reduce((a, w) => a + (w.price || 0), 0);
+    const rea = ws.filter(w => w.realistic).reduce((a, w) => a + (w.price || 0), 0);
+    const ohne = ws.filter(w => w.price == null).length;
+    const teil = (label, wert) => {
+      const s = document.createElement("span");
+      s.appendChild(document.createTextNode(label + " "));
+      const b = document.createElement("b"); b.textContent = fmtPreis(wert);
+      s.appendChild(b);
+      return s;
+    };
+    sb.appendChild(teil(ws.length + " Wünsche ·", ges));
+    if (rea !== ges) {
+      const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "|";
+      sb.appendChild(sep);
+      sb.appendChild(teil("davon realistisch", rea));
+    }
+    if (ohne) {
+      const s = document.createElement("span");
+      s.className = "sep";
+      s.textContent = ohne + " ohne Preis";
+      sb.appendChild(s);
+    }
+  }
 
   if (!ws.length) {
     const e = document.createElement("div");
@@ -772,9 +1017,19 @@ function renderWishes() {
 
     if (w.note) {
       const n = document.createElement("div");
-      n.className = "note"; n.textContent = w.note;
+      n.className = "note";
+      n.appendChild(textMitLinks(w.note));
       el.appendChild(n);
     }
+
+    if (w.price != null) {
+      const pr = document.createElement("div");
+      pr.className = "pr"; pr.textContent = fmtPreis(w.price);
+      el.appendChild(pr);
+    }
+
+    const th = thumbNode(w);
+    if (th) el.appendChild(th);
 
     const meta = document.createElement("div");
     meta.className = "meta";
@@ -1012,7 +1267,10 @@ function wishModal(wish) {
     m.innerHTML =
       "<h3>" + (wish ? "Wunsch bearbeiten" : "Wunsch hinzufügen") + "</h3>" +
       '<label>Wunsch</label><textarea id="wTxt" placeholder="z. B. neue Kopfhörer"></textarea>' +
-      '<label>Notiz (optional)</label><input type="text" id="wNote" placeholder="z. B. Größe M, schwarz, ca. 80 €">' +
+      '<label>Notiz (optional)</label><input type="text" id="wNote" placeholder="z. B. Größe M, schwarz, oder ein Link">' +
+      '<label>Preis (optional)</label><input type="text" id="wPrice" inputmode="decimal" placeholder="z. B. 80  ·  80,50  ·  2.5k">' +
+      '<label>Bild (optional)</label><div class="imgRow" id="wImgRow"></div>' +
+      '<input type="file" id="wImgFile" accept="image/*" hidden>' +
       '<label>Anlass</label><div class="segs" id="segOcc">' +
         '<button data-v="bday">Geburtstag</button>' +
         '<button data-v="xmas">Weihnachten</button>' +
@@ -1031,6 +1289,44 @@ function wishModal(wish) {
     segOcc.onclick = e => { const b = e.target.closest("button"); if (b) { occ = b.dataset.v; paint(); } };
     segType.onclick = e => { const b = e.target.closest("button"); if (b) { real = b.dataset.v === "1"; paint(); } };
     paint();
+
+    /* Bild auswählen / entfernen */
+    let bild = wish && wish.img ? wish.img : "";
+    const row = m.querySelector("#wImgRow");
+    const bildIn = m.querySelector("#wImgFile");
+    function malRow() {
+      row.innerHTML = "";
+      if (bild) {
+        const im = document.createElement("img");
+        im.className = "imgPrev"; im.src = bild; im.style.cursor = "zoom-in";
+        im.onclick = () => zeigeBild(bild);
+        row.appendChild(im);
+      }
+      const b1 = document.createElement("button");
+      b1.textContent = bild ? "Anderes Bild" : "Bild wählen";
+      b1.onclick = () => bildIn.click();
+      row.appendChild(b1);
+      if (bild) {
+        const b2 = document.createElement("button");
+        b2.className = "danger"; b2.textContent = "Entfernen";
+        b2.onclick = () => { bild = ""; malRow(); };
+        row.appendChild(b2);
+      }
+      const t = document.createElement("div");
+      t.className = "imgTxt";
+      t.textContent = bild
+        ? "Ist auf " + BILD_MAX + " px verkleinert (" + Math.round(bild.length * 0.75 / 1024) + " KB)."
+        : "Wird automatisch auf " + BILD_MAX + " px verkleinert.";
+      row.appendChild(t);
+    }
+    bildIn.onchange = async e => {
+      const f = e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      try { bild = await bildVerkleinern(f); malRow(); }
+      catch (err) { alert(err.message || "Bild konnte nicht geladen werden."); }
+    };
+    malRow();
 
     const box = m.querySelector("#wPeople");
     state.people.forEach(p => {
@@ -1064,11 +1360,12 @@ function wishModal(wish) {
       if (!text) { m.querySelector("#wTxt").focus(); return; }
       if (!chosen.size) { alert("Wähle mindestens eine Person aus."); return; }
       const note = m.querySelector("#wNote").value.trim();
+      const price = preisEingabe(m.querySelector("#wPrice").value);
       if (wish) {
-        Object.assign(wish, { text, note, occ, realistic: real, people: [...chosen] });
+        Object.assign(wish, { text, note, price, img: bild, occ, realistic: real, people: [...chosen] });
       } else {
         state.wishes.push({
-          id: uid(), text, note, occ, realistic: real,
+          id: uid(), text, note, price, img: bild, occ, realistic: real,
           people: [...chosen], done: false, created: Date.now()
         });
       }
@@ -1080,6 +1377,7 @@ function wishModal(wish) {
     if (wish) {
       m.querySelector("#wTxt").value = wish.text;
       m.querySelector("#wNote").value = wish.note || "";
+      m.querySelector("#wPrice").value = wish.price != null ? String(wish.price).replace(".", ",") : "";
     }
     if (!isPhone()) m.querySelector("#wTxt").focus();
   });
@@ -1167,11 +1465,24 @@ function buildPrint() {
       t.textContent = w.text;
       col.appendChild(t);
 
+      if (w.price != null) {
+        const pp = document.createElement("div");
+        pp.className = "pPrice";
+        pp.textContent = fmtPreis(w.price);
+        col.appendChild(pp);
+      }
+
       if (w.note) {
         const n = document.createElement("div");
         n.className = "pNote";
         n.textContent = w.note;
         col.appendChild(n);
+      }
+
+      if (w.img) {
+        const im = document.createElement("img");
+        im.className = "pImg"; im.src = w.img; im.alt = "";
+        col.appendChild(im);
       }
 
       const tg = document.createElement("div");
@@ -1198,10 +1509,12 @@ function buildPrint() {
     a.appendChild(e);
   }
 
+  const gesamt = state.wishes.reduce((s, w) => s + (w.price || 0), 0);
   const f = document.createElement("div");
   f.className = "pFoot";
-  f.textContent = state.people.length + " Personen  ·  " + state.wishes.length +
-    " Wünsche  ·  Wünsche für mehrere Personen stehen bei jeder davon.";
+  f.textContent = state.people.length + " Personen  ·  " + state.wishes.length + " Wünsche" +
+    (gesamt > 0 ? "  ·  Summe " + fmtPreis(gesamt) : "") +
+    "  ·  Wünsche für mehrere Personen stehen bei jeder davon.";
   a.appendChild(f);
 }
 
@@ -1239,12 +1552,17 @@ function unb64url(str) {
   return u8;
 }
 
-async function packState() {
+async function packState(mitBildern) {
   const payload = {
     v: 1,
     people: state.people,
     links: state.links,
-    wishes: state.wishes,
+    wishes: mitBildern ? state.wishes : state.wishes.map(w => {
+      if (!w.img) return w;
+      const k = Object.assign({}, w);
+      delete k.img;
+      return k;
+    }),
     expanded: [...expanded]
   };
   const bytes = new TextEncoder().encode(JSON.stringify(payload));
@@ -1278,12 +1596,16 @@ function shareBase() {
   return WEB_BASE;   // in der Mac-App: Link zeigt auf die Website
 }
 
-function showLink(url) {
+function showLink(url, mitBildern) {
+  const kb = Math.round(url.length / 1024);
   openModal(m => {
     m.innerHTML =
       "<h3>Link kopiert</h3>" +
-      '<div class="hint" style="margin:0 0 10px">In diesem Link stecken alle Zettel, Namen, Notizen und Positionen. ' +
-      "Öffne ihn in einem neuen Tab oder am Handy – dann ist alles genau so da.</div>" +
+      '<div class="hint" style="margin:0 0 10px">In diesem Link stecken alle Zettel, Namen, Notizen, Preise und Positionen. ' +
+      (mitBildern
+        ? "<b>Mit Bildern</b> – dafür ist er mit " + kb + " KB sehr lang. Zum Verschicken über WhatsApp oder Mail ist er zu groß, aber Kopieren und selbst Einfügen funktioniert."
+        : "<b>Ohne Bilder</b>, damit er kurz bleibt (" + (url.length > 1024 ? kb + " KB" : url.length + " Zeichen") + "). Bilder übertragen: „Großer Link mit Bildern“ oder Backup/Import.") +
+      "</div>" +
       '<input type="text" id="shareUrl" readonly>' +
       '<div class="hint">Falls das automatische Kopieren nicht geklappt hat: Feld ist markiert, einfach ⌘C drücken. ' +
       "Der Teil hinter dem # wird nie an einen Server geschickt.</div>";
@@ -1318,16 +1640,18 @@ async function copyText(t) {
   } catch (e) { return false; }
 }
 
-$("btnShare").onclick = async () => {
+async function linkKopieren(mitBildern) {
   $("more").classList.remove("open");
   try {
-    const url = shareBase() + "#d=" + await packState();
+    const url = shareBase() + "#d=" + await packState(mitBildern);
     await copyText(url);
-    showLink(url);
+    showLink(url, mitBildern);
   } catch (e) {
     alert("Link konnte nicht erstellt werden: " + (e && e.message ? e.message : e));
   }
-};
+}
+$("btnShare").onclick = () => linkKopieren(false);
+$("btnShareBig").onclick = () => linkKopieren(true);
 
 /* Daten aus einem Link/Code uebernehmen */
 function applyPayload(d) {
@@ -1337,6 +1661,7 @@ function applyPayload(d) {
     wishes: Array.isArray(d.wishes) ? d.wishes : []
   };
   state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+  migratePrices();
   expanded.clear();
   if (Array.isArray(d.expanded)) d.expanded.forEach(id => expanded.add(id));
   selPerson = null;
@@ -1438,6 +1763,7 @@ $("fileIn").onchange = e => {
         wishes: Array.isArray(d.wishes) ? d.wishes : []
       };
       state.wishes.forEach(w => { if (typeof w.note !== "string") w.note = ""; });
+      migratePrices();
       selPerson = null; expanded.clear(); saveExpanded(); save(); render(); fitToContent();
     } catch (err) { alert("Datei konnte nicht gelesen werden."); }
   };
@@ -1457,6 +1783,12 @@ $("filterType").onclick = e => {
   const b = e.target.closest("button[data-type]"); if (!b) return;
   fType = b.dataset.type;
   [...$("filterType").querySelectorAll("button[data-type]")].forEach(x => x.classList.toggle("on", x === b));
+  renderWishes();
+};
+$("filterDone").onclick = e => {
+  const b = e.target.closest("button[data-done]"); if (!b) return;
+  fDone = b.dataset.done;
+  [...$("filterDone").querySelectorAll("button[data-done]")].forEach(x => x.classList.toggle("on", x === b));
   renderWishes();
 };
 
@@ -1527,11 +1859,12 @@ function seedBase() {
 
   const T = 1785000000000;
   const wishes = raw.map((r, i) => ({
-    id: "w" + i, text: r[0], note: r[1], occ: r[2], realistic: r[3],
+    id: "w" + i, text: r[0], note: r[1], img: "", occ: r[2], realistic: r[3],
     people: r[4], done: false, created: T - i * 1000
   }));
 
   state = { people, links, wishes };
+  migratePrices();   // holt die Preise aus Notizen und Titeln – gleiche Logik wie bei alten Daten
   expanded.clear();
   expanded.add("geld");   // war im Original aufgeklappt
   saveExpanded();
